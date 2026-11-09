@@ -1,0 +1,65 @@
+/*
+ * 2h CA Boss Checklist - Plugin Hub build file. For humans and local builds only: the manifest says build=standard, so the
+ * Hub deletes this file and builds the sources with its own.
+ */
+plugins {
+	id 'java'
+}
+
+repositories {
+	maven {
+		url = 'https://repo.runelite.net'
+		content {
+			includeGroupByRegex("net\\.runelite.*")
+		}
+	}
+	mavenCentral()
+}
+
+// The Hub's pinned RuneLite client (runelite.version); the offline fallback, overridden by -PruneLiteVersion.
+def runeLiteVersion = project.findProperty('runeLiteVersion') ?: '1.13.6'
+def launcherClass = 'com.cabosschecklist.CaBossChecklistPluginTest'
+
+// A launch (run.bat passes -PruneLiteVersion) compiles the launcher, not the unit tests, which are written against the pin.
+if (project.hasProperty('runeLiteVersion')) {
+	sourceSets.test.java.exclude { it.name.endsWith('Test.java') && it.name != 'CaBossChecklistPluginTest.java' }
+}
+
+dependencies {
+	compileOnly group: 'net.runelite', name: 'client', version: runeLiteVersion
+
+	testImplementation 'junit:junit:4.12'
+	// Mockito 4.11.0 (JDK 17 safe; RuneLite itself pins 3.1.0).
+	testImplementation 'org.mockito:mockito-core:4.11.0'
+	testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
+}
+
+group = 'com.cabosschecklist'
+// Equal to Version.CURRENT and to version= in runelite-plugin.properties (RELEASE-TEXT-template.md, checklist 2).
+version = '0.0.1'
+
+// The Hub reads runelite-plugin.properties from the repository root; the frame test reads it back off the classpath.
+processResources {
+	from(rootDir) {
+		include 'runelite-plugin.properties'
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
+	// Hub rule: Java 11 bytecode or lower.
+	options.release.set(11)
+}
+
+// Greyscale text antialiasing, so a pinned picture is drawn the same on every machine (test JVM only).
+tasks.withType(Test).configureEach {
+	jvmArgs '-Dawt.useSystemAAFontSettings=off'
+}
+
+// `gradlew run` boots a developer-mode client with this plugin injected; -ea is required by loadBuiltin.
+tasks.register('run', JavaExec) {
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = launcherClass
+	jvmArgs '-ea'
+	args '--developer-mode'
+}
