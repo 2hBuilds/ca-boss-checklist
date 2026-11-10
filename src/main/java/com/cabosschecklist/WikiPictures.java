@@ -5,9 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-import java.awt.Image;
 import java.awt.MediaTracker;
-import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Arrays;
@@ -306,8 +304,8 @@ final class WikiPictures
 	}
 
 	/**
-	 * The picture the bytes hold, as an ARGB image with its transparency kept, decoded by the AWT toolkit and loaded
-	 * through an icon so that it is complete when this returns; null for null or empty bytes, for bytes the toolkit cannot
+	 * The picture the bytes hold, as an ARGB image with its transparency kept, read by an icon so that it is complete
+	 * when this returns; null for null or empty bytes, for bytes the toolkit cannot
 	 * read (a WebP file, a page of text), and for a picture with no size.
 	 */
 	static BufferedImage decode(byte[] bytes)
@@ -318,8 +316,7 @@ final class WikiPictures
 		}
 		try
 		{
-			final Image image = Toolkit.getDefaultToolkit().createImage(bytes);
-			final ImageIcon icon = new ImageIcon(image);
+			final ImageIcon icon = new ImageIcon(bytes);
 			if (icon.getImageLoadStatus() != MediaTracker.COMPLETE || icon.getIconWidth() <= 0 || icon.getIconHeight() <= 0)
 			{
 				return null;
