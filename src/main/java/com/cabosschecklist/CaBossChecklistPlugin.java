@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Client;
@@ -18,6 +19,7 @@ import net.runelite.api.EnumComposition;
 import net.runelite.api.GameState;
 import net.runelite.api.StructComposition;
 import net.runelite.api.WorldType;
+import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
@@ -126,6 +128,11 @@ public class CaBossChecklistPlugin extends Plugin
 
 	@Inject
 	private ItemManager itemManager;
+
+	/** The text colour each chosen-name widget had before this plugin first coloured it, by widget id and index. */
+	private final Map<Long, Integer> originalColours = new ConcurrentHashMap<>();
+	/** Whether the once-per-session log line about the chosen-name boxes has been written. */
+	private boolean boxLogged;
 
 	private NavigationButton navButton;
 	private CaBossChecklistPanel panel;
@@ -286,6 +293,8 @@ public class CaBossChecklistPlugin extends Plugin
 			clientToolbar.removeNavigation(navButton);
 			navButton = null;
 		}
+		originalColours.clear();
+		boxLogged = false;
 		panel = null;
 		pictures = null;
 		book = null;
@@ -337,7 +346,8 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 		else
 		{
-			target.show(ChecklistView.build(labels, names, current, marks, config.autoDetect()).withTasks(taskLines));
+			target.show(ChecklistView.build(labels, names, current, marks, config.autoDetect(), config.almostDone())
+				.withTasks(taskLines));
 		}
 	}
 
@@ -421,6 +431,7 @@ public class CaBossChecklistPlugin extends Plugin
 			completeTiers = Collections.emptySet();
 			if (state == GameState.LOGIN_SCREEN)
 			{
+				originalColours.clear();
 				progress = null;
 				taskLines = Collections.emptyMap();
 				pushView();
@@ -574,6 +585,19 @@ public class CaBossChecklistPlugin extends Plugin
 	@Subscribe
 	public void onClientTick(ClientTick event)
 	{
+		colourMenus();
+	}
+
+	/** The game's hover script runs after the client tick in a frame, so the colours are set again just before drawing. */
+	@Subscribe
+	public void onBeforeRender(BeforeRender event)
+	{
+		colourMenus();
+	}
+
+	/** Colours the open Monster and Tier lists' rows, and the chosen Monster's name in the boxes outside the list. */
+	private void colourMenus()
+	{
 		final boolean autoDetect = config.autoDetect();
 		final boolean almostDone = config.almostDone();
 		final Map<Integer, Mark> markNow = marks;
@@ -587,17 +611,16 @@ public class CaBossChecklistPlugin extends Plugin
 				for (Widget row : rows)
 				{
 					final int id = CaCompletion.idForRow(row.getIndex());
-					if (Marks.isGreen(id, autoDetect, completeMonsters, markNow))
+					final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, almostDone, completeMonsters, markNow,
+						progressNow);
+					if (shade != CaCompletion.Shade.PLAIN)
 					{
-						row.setTextColor(COMPLETE_COLOR);
-					}
-					else if (almostDone && progressNow != null && CaCompletion.isAlmostDone(progressNow.get(id)))
-					{
-						row.setTextColor(ALMOST_DONE_COLOR);
+						row.setTextColor(colourOf(shade));
 					}
 				}
 			}
 		}
+		colourChosenBoxes(autoDetect, almostDone, markNow, progressNow);
 		final Widget tiers = client.getWidget(InterfaceID.CaTasks.DROPDOWN_TIER);
 		if (tiers != null && !tiers.isHidden())
 		{
@@ -614,5 +637,84 @@ public class CaBossChecklistPlugin extends Plugin
 				}
 			}
 		}
+	}
+
+	private static int colourOf(CaCompletion.Shade shade)
+	{
+		return shade == CaCompletion.Shade.GREEN ? COMPLETE_COLOR : ALMOST_DONE_COLOR;
+	}
+
+	/**
+	 * Gives the chosen Monster's name, where the game shows it outside the open list (the MONSTER_FILTER box and the
+	 * DROPDOWN_BOX under the list), the colour that name has in the list. The chosen monster is the game's own filter
+	 * varbit (scripts ca_task_updatetext 4833 and ca_task_filter_updatetext 4823 write the box from it, in full or cut
+	 * with "..."); only a widget showing that monster's label is touched.
+	 */
+	private void colourChosenBoxes(boolean autoDetect, boolean almostDone, Map<Integer, Mark> markNow,
+		Map<Integer, CaCompletion.Progress> progressNow)
+	{
+		final int id = client.getVarbitValue(VarbitID.CA_TASK_FILTER_MONSTER);
+		final String label = labels.get(id);
+		if (id < 1 || label == null)
+		{
+			return;
+		}
+		final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, almostDone, completeMonsters, markNow,
+			progressNow);
+		int matched = colourChosenTree(client.getWidget(InterfaceID.CaTasks.MONSTER_FILTER), 0, label, shade);
+		matched += colourChosenTree(client.getWidget(InterfaceID.CaTasks.DROPDOWN_BOX), 0, label, shade);
+		if (!boxLogged && matched > 0)
+		{
+			boxLogged = true;
+			log.debug("Chosen-name boxes matched {} widgets", matched);
+		}
+	}
+
+	/** Colours the widget and its children down to depth 3 that show {@code label}; returns how many matched. */
+	private int colourChosenTree(Widget widget, int depth, String label, CaCompletion.Shade shade)
+	{
+		if (widget == null || widget.isHidden())
+		{
+			return 0;
+		}
+		int matched = 0;
+		if (CaCompletion.showsLabel(widget.getText(), label))
+		{
+			matched++;
+			final long key = ((long) widget.getId() << 16) | (widget.getIndex() & 0xFFFF);
+			if (shade == CaCompletion.Shade.PLAIN)
+			{
+				final Integer original = originalColours.get(key);
+				if (original != null && widget.getTextColor() != original)
+				{
+					widget.setTextColor(original);
+				}
+			}
+			else
+			{
+				originalColours.putIfAbsent(key, widget.getTextColor());
+				widget.setTextColor(colourOf(shade));
+			}
+		}
+		if (depth < 3)
+		{
+			matched += colourAll(widget.getStaticChildren(), depth + 1, label, shade);
+			matched += colourAll(widget.getDynamicChildren(), depth + 1, label, shade);
+			matched += colourAll(widget.getNestedChildren(), depth + 1, label, shade);
+		}
+		return matched;
+	}
+
+	private int colourAll(Widget[] children, int depth, String label, CaCompletion.Shade shade)
+	{
+		int matched = 0;
+		if (children != null)
+		{
+			for (Widget child : children)
+			{
+				matched += colourChosenTree(child, depth, label, shade);
+			}
+		}
+		return matched;
 	}
 }

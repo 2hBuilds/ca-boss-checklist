@@ -76,7 +76,7 @@ public class CaBossChecklistPanelTest
 		progress.put(5, new CaCompletion.Progress(6, 2));
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
-		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, true);
+		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, true, false);
 	}
 
 	/** The wiki's pictures over a factory that must never be called: for tests with the wiki switch off. */
@@ -299,7 +299,7 @@ public class CaBossChecklistPanelTest
 		progress.put(5, new CaCompletion.Progress(6, 2));
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
-		return ChecklistView.build(labels, names, progress, new HashMap<>(), true);
+		return ChecklistView.build(labels, names, progress, new HashMap<>(), true, false);
 	}
 
 	private static <T> List<T> all(Component root, Class<T> type)
@@ -620,5 +620,27 @@ public class CaBossChecklistPanelTest
 		assertEquals(1, labelsWithText(panel, "Wiki").size());
 		pressLeft(oneLabel(panel, "Death to the Seer King"));
 		assertEquals(0, labelsWithText(panel, "Wiki").size());
+	}
+
+	@Test
+	public void rowNamesTakeTheGameColours()
+	{
+		final Map<Integer, String> labels = new HashMap<>();
+		labels.put(5, "Barrows");
+		labels.put(19, "DK: Prime");
+		labels.put(72, "Zulrah");
+		final Map<Integer, CaCompletion.Progress> progress = new HashMap<>();
+		progress.put(5, new CaCompletion.Progress(3, 1));
+		progress.put(19, new CaCompletion.Progress(4, 4));
+		progress.put(72, new CaCompletion.Progress(8, 1));
+		final CaBossChecklistPanel panel = panel(new Recorder(),
+			ChecklistView.build(labels, Collections.emptyMap(), progress, Collections.emptyMap(), true, true));
+		final Color quiet = ViewParts.quiet("").getForeground();
+		assertEquals(new Color(0xFFFF00), oneLabel(panel, "Barrows").getForeground());
+		assertEquals(new Color(0x0DC10D), oneLabel(panel, "DK: Prime").getForeground());
+		assertEquals(new Color(0xFF981F), oneLabel(panel, "Zulrah").getForeground());
+		assertEquals(quiet, oneLabel(panel, "Done").getForeground());
+		assertEquals(quiet, oneLabel(panel, "2 left").getForeground());
+		assertEquals(quiet, oneLabel(panel, "7 left").getForeground());
 	}
 }

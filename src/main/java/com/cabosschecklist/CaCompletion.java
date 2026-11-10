@@ -245,6 +245,56 @@ final class CaCompletion
 		return complete;
 	}
 
+	/** How a monster's name is drawn: the game's own colour, green, or yellow. */
+	enum Shade
+	{
+		PLAIN, GREEN, YELLOW
+	}
+
+	/**
+	 * The shade of a monster's name: green when {@link Marks#isGreen}; else yellow when {@code almostDone} is on and the
+	 * monster's progress is almost done; else plain. Id 0 ("All") and below are always plain; {@code progress} may be null.
+	 */
+	static Shade shadeOf(int id, boolean autoDetect, boolean almostDone, Set<Integer> complete, Map<Integer, Mark> marks,
+		Map<Integer, Progress> progress)
+	{
+		if (id < 1)
+		{
+			return Shade.PLAIN;
+		}
+		if (Marks.isGreen(id, autoDetect, complete, marks))
+		{
+			return Shade.GREEN;
+		}
+		if (almostDone && progress != null && isAlmostDone(progress.get(id)))
+		{
+			return Shade.YELLOW;
+		}
+		return Shade.PLAIN;
+	}
+
+	/**
+	 * Whether a box's text shows {@code label}: the label itself, or the label cut short with "..." (the game's
+	 * ca_task_filter_updatetext cuts it to the box's width). A blank text, or a lone "...", never does.
+	 */
+	static boolean showsLabel(String text, String label)
+	{
+		if (text == null || label == null || text.trim().isEmpty())
+		{
+			return false;
+		}
+		if (text.equals(label))
+		{
+			return true;
+		}
+		if (text.endsWith("...") && text.length() > 3)
+		{
+			final String start = text.substring(0, text.length() - 3).trim();
+			return !start.isEmpty() && label.startsWith(start);
+		}
+		return false;
+	}
+
 	/**
 	 * The entry id of a dropdown row (clientscript ca_task_filter_open, 4826): child 0 is the hover box and the entry for
 	 * key k is child k + 1; sorting moves rows on screen and never changes an index.

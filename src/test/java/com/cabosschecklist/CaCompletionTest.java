@@ -241,4 +241,67 @@ public class CaCompletionTest
 		assertFalse(CaCompletion.isAlmostDone(new CaCompletion.Progress(0, 0)));
 		assertFalse(CaCompletion.isAlmostDone(null));
 	}
+
+	@Test
+	public void shadeAllIsPlain()
+	{
+		final Map<Integer, CaCompletion.Progress> progress = new HashMap<>();
+		progress.put(0, new CaCompletion.Progress(3, 3));
+		final Map<Integer, Mark> marks = new HashMap<>();
+		marks.put(0, Mark.DONE);
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(0, true, true, set(0), marks, progress));
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(-1, true, true, set(-1), marks, progress));
+	}
+
+	@Test
+	public void shadeMarkWins()
+	{
+		final Map<Integer, CaCompletion.Progress> progress = new HashMap<>();
+		progress.put(7, new CaCompletion.Progress(4, 2));
+		final Map<Integer, Mark> done = new HashMap<>();
+		done.put(7, Mark.DONE);
+		assertEquals(CaCompletion.Shade.GREEN, CaCompletion.shadeOf(7, true, false, set(), done, progress));
+		progress.put(8, new CaCompletion.Progress(2, 2));
+		final Map<Integer, Mark> notDone = new HashMap<>();
+		notDone.put(8, Mark.NOT_DONE);
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(8, true, true, set(8), notDone, progress));
+	}
+
+	@Test
+	public void shadeFromAccount()
+	{
+		final Map<Integer, CaCompletion.Progress> progress = new HashMap<>();
+		progress.put(7, new CaCompletion.Progress(2, 2));
+		final Map<Integer, Mark> none = Collections.emptyMap();
+		assertEquals(CaCompletion.Shade.GREEN, CaCompletion.shadeOf(7, true, true, set(7), none, progress));
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(7, false, true, set(7), none, progress));
+	}
+
+	@Test
+	public void shadeAlmostDone()
+	{
+		final Map<Integer, Mark> none = Collections.emptyMap();
+		final Map<Integer, CaCompletion.Progress> progress = new HashMap<>();
+		progress.put(1, new CaCompletion.Progress(3, 2));
+		progress.put(2, new CaCompletion.Progress(2, 0));
+		progress.put(3, new CaCompletion.Progress(5, 2));
+		assertEquals(CaCompletion.Shade.YELLOW, CaCompletion.shadeOf(1, true, true, set(), none, progress));
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(1, true, false, set(), none, progress));
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(2, true, true, set(), none, progress));
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(3, true, true, set(), none, progress));
+		assertEquals(CaCompletion.Shade.PLAIN, CaCompletion.shadeOf(1, true, true, set(), none, null));
+	}
+
+	@Test
+	public void showsLabelInFullOrCut()
+	{
+		assertTrue(CaCompletion.showsLabel("Fire Giants", "Fire Giants"));
+		assertTrue(CaCompletion.showsLabel("Corporeal Be...", "Corporeal Beast"));
+		assertTrue(CaCompletion.showsLabel("Chambers of ...", "Chambers of Xeric"));
+		assertFalse(CaCompletion.showsLabel("Monster:", "Fire Giants"));
+		assertFalse(CaCompletion.showsLabel("Fire Giants", "Giant Mole"));
+		assertFalse(CaCompletion.showsLabel("...", "Fire Giants"));
+		assertFalse(CaCompletion.showsLabel("", "Fire Giants"));
+		assertFalse(CaCompletion.showsLabel(null, "Fire Giants"));
+	}
 }

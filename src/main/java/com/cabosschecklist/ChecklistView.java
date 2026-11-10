@@ -25,10 +25,13 @@ final class ChecklistView
 		/** Null when the boss has no mark. */
 		final Mark mark;
 		final boolean green;
+		/** The colour of the boss's name in the game's Monster list. */
+		final CaCompletion.Shade shade;
 		/** Null when the boss has no mark. */
 		final Marks.Group group;
 
-		Boss(int id, String label, String name, int total, int done, Mark mark, boolean green, Marks.Group group)
+		Boss(int id, String label, String name, int total, int done, Mark mark, boolean green, CaCompletion.Shade shade,
+			Marks.Group group)
 		{
 			this.id = id;
 			this.label = label;
@@ -37,6 +40,7 @@ final class ChecklistView
 			this.done = done;
 			this.mark = mark;
 			this.green = green;
+			this.shade = shade;
 			this.group = group;
 		}
 
@@ -122,10 +126,11 @@ final class ChecklistView
 
 	/**
 	 * One boss per entry of {@code labels}; marks for ids not in {@code labels} are ignored everywhere. {@code names} are
-	 * the game's long names; a boss with none (or a blank one) takes its label for its name.
+	 * the game's long names; a boss with none (or a blank one) takes its label for its name. {@code almostDone} lets a boss
+	 * with one or two tasks left take the yellow shade.
 	 */
 	static ChecklistView build(Map<Integer, String> labels, Map<Integer, String> names,
-		Map<Integer, CaCompletion.Progress> progress, Map<Integer, Mark> marks, boolean autoDetect)
+		Map<Integer, CaCompletion.Progress> progress, Map<Integer, Mark> marks, boolean autoDetect, boolean almostDone)
 	{
 		final Set<Integer> complete = CaCompletion.completeIds(progress);
 		final List<Integer> ids = new ArrayList<>(labels.keySet());
@@ -148,7 +153,8 @@ final class ChecklistView
 			final boolean green = Marks.isGreen(id, autoDetect, complete, marks);
 			final String longName = names.get(id);
 			final String name = longName == null || longName.trim().isEmpty() ? labels.get(id) : longName;
-			bosses.add(new Boss(id, labels.get(id), name, total, done, mark, green, group));
+			final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, almostDone, complete, marks, progress);
+			bosses.add(new Boss(id, labels.get(id), name, total, done, mark, green, shade, group));
 			greens += green ? 1 : 0;
 			disagrees += group == Marks.Group.DISAGREE ? 1 : 0;
 			marked += mark == null ? 0 : 1;
