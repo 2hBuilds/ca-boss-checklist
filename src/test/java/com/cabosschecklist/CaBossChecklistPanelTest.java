@@ -13,7 +13,10 @@ import com.google.gson.Gson;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,6 +30,7 @@ import java.util.Map;
 import javax.swing.Icon;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JRadioButtonMenuItem;
 import javax.swing.SwingUtilities;
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.BadLocationException;
@@ -54,15 +58,15 @@ public class CaBossChecklistPanelTest
 		}
 
 		@Override
-		public void keep(int id)
-		{
-			calls.add("keep " + id);
-		}
-
-		@Override
 		public void remove(List<Integer> ids)
 		{
 			calls.add("remove " + ids);
+		}
+
+		@Override
+		public void remember(Map<Integer, Mark> seen)
+		{
+			calls.add("remember [" + Marks.format(seen) + "]");
 		}
 	}
 
@@ -76,7 +80,7 @@ public class CaBossChecklistPanelTest
 		progress.put(5, new CaCompletion.Progress(6, 2));
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
-		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, true, false);
+		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, true, false, Collections.emptyMap());
 	}
 
 	/** The wiki's pictures over a factory that must never be called: for tests with the wiki switch off. */
@@ -94,6 +98,7 @@ public class CaBossChecklistPanelTest
 	private static final class TestSettings implements MenuSettings
 	{
 		private final boolean wiki;
+		int hidden;
 
 		TestSettings(boolean wiki)
 		{
@@ -145,6 +150,12 @@ public class CaBossChecklistPanelTest
 		}
 
 		@Override
+		public void hideSidebar()
+		{
+			hidden++;
+		}
+
+		@Override
 		public void resetToDefault()
 		{
 		}
@@ -152,7 +163,8 @@ public class CaBossChecklistPanelTest
 
 	private static CaBossChecklistPanel panel(Recorder recorder, ChecklistView view)
 	{
-		final CaBossChecklistPanel panel = new CaBossChecklistPanel(new TestSettings(false), recorder, noWiki());
+		final CaBossChecklistPanel panel = new CaBossChecklistPanel(new TestSettings(false), recorder, noWiki(),
+			(t, q, y) -> false);
 		panel.show(view);
 		return panel;
 	}
@@ -264,26 +276,107 @@ public class CaBossChecklistPanelTest
 		assertEquals(Arrays.asList("flip 19"), recorder.calls);
 	}
 
+	/** The marks of the Manual tests: Barrows and Zulrah differ from the account, DK: Prime does not. */
+	private static Map<Integer, Mark> threeMarks()
+	{
+		final Map<Integer, Mark> marks = new HashMap<>();
+		marks.put(5, Mark.DONE);
+		marks.put(19, Mark.DONE);
+		marks.put(72, Mark.NOT_DONE);
+		return marks;
+	}
+
 	@Test
 	public void manualLinksCallActions()
 	{
 		final Recorder recorder = new Recorder();
-		final Map<Integer, Mark> marks = new HashMap<>();
-		marks.put(5, Mark.DONE);
-		marks.put(19, Mark.DONE);
-		marks.put(72, Mark.NOT_DONE_KEPT);
-		final CaBossChecklistPanel panel = panel(recorder, view(marks));
+		final CaBossChecklistPanel panel = panel(recorder, view(threeMarks()));
 
-		final List<JLabel> keep = labelsWithText(panel, "Keep");
-		assertEquals(1, keep.size());
-		press(keep.get(0));
-		final List<JLabel> remove = labelsWithText(panel, "Remove");
+		assertTrue(labelsWithText(panel, "Keep").isEmpty());
+		assertTrue(labelsWithText(panel, "Remove").isEmpty());
+		final List<JLabel> remove = labelsWithText(panel, "\u00d7");
 		assertEquals(3, remove.size());
 		press(remove.get(0));
 		final List<JLabel> removeAll = labelsWithText(panel, "Remove all");
 		assertEquals(1, removeAll.size());
 		press(removeAll.get(0));
-		assertEquals(Arrays.asList("keep 5", "remove [5]", "remove [19]"), recorder.calls);
+		assertEquals(Arrays.asList("remove [5]", "remove [19]"), recorder.calls);
+	}
+
+	/** The name label of {@code boss} in the row that also holds a label {@code word}. */
+	private static JLabel nameInRowWith(CaBossChecklistPanel panel, String boss, String word)
+	{
+		for (JLabel label : labelsWithText(panel, boss))
+		{
+			final Component lines = label.getParent().getParent();
+			if (lines != null && !labelsIn(lines, word).isEmpty())
+			{
+				return label;
+			}
+		}
+		throw new AssertionError(boss);
+	}
+
+	private static void assertCount(CaBossChecklistPanel panel, String text, int count, Color colour)
+	{
+		final List<JLabel> found = labelsWithText(panel, text);
+		assertEquals(text, count, found.size());
+		for (JLabel label : found)
+		{
+			assertEquals(text, colour, label.getForeground());
+		}
+	}
+
+	@Test
+	public void manualRowsSayWhatIsOverridden()
+	{
+		final CaBossChecklistPanel panel = panel(new Recorder(), view(threeMarks()));
+		for (String word : new String[] {"Your marks override your account (2)", "Same as your account (1)",
+			" \u00b7 2 of 6 done", " \u00b7 8 of 8 done", " \u00b7 4 of 4 done"})
+		{
+			assertEquals(word, 1, labelsWithText(panel, word).size());
+		}
+		for (String word : new String[] {"Boss", "You", "Account"})
+		{
+			assertTrue(word, labelsWithText(panel, word).isEmpty());
+		}
+		final Color green = new Color(0x0DC10D);
+		final Color orange = new Color(0xFF981F);
+		assertCount(panel, "Green", 2, green);
+		assertCount(panel, "Orange", 1, orange);
+		assertCount(panel, "orange", 1, orange);
+		assertCount(panel, "green", 1, green);
+		assertCount(panel, " instead of ", 2, ColorScheme.LIGHT_GRAY_COLOR);
+		assertCount(panel, " either way", 1, ColorScheme.LIGHT_GRAY_COLOR);
+		assertEquals("Your account: 4 tasks left", labelsWithText(panel,
+			" \u00b7 2 of 6 done").get(0).getToolTipText());
+		assertEquals("Barrows", nameInRowWith(panel, "Barrows", "orange").getToolTipText());
+	}
+
+	@Test
+	public void manualWithTheSwitchOffIsOneGroup()
+	{
+		final Map<Integer, String> labels = new HashMap<>();
+		labels.put(5, "Barrows");
+		labels.put(19, "DK: Prime");
+		labels.put(72, "Zulrah");
+		final Map<Integer, CaCompletion.Progress> progress = new HashMap<>();
+		progress.put(5, new CaCompletion.Progress(6, 2));
+		progress.put(19, new CaCompletion.Progress(4, 4));
+		progress.put(72, new CaCompletion.Progress(8, 8));
+		final CaBossChecklistPanel panel = panel(new Recorder(),
+			ChecklistView.build(labels, Collections.emptyMap(), progress, threeMarks(), false, false, Collections.emptyMap()));
+		assertEquals(1, labelsWithText(panel, "Your marks (3)").size());
+		for (JLabel label : all(panel, JLabel.class))
+		{
+			final String text = String.valueOf(label.getText());
+			assertFalse(text, text.startsWith("Different") || text.startsWith("Same")
+				|| text.startsWith("Your marks override"));
+		}
+		assertTrue(labelsWithText(panel, "Remove all").isEmpty());
+		assertEquals(3, labelsWithText(panel, "\u00d7").size());
+		assertEquals(2, labelsWithText(panel, " instead of ").size());
+		assertEquals(1, labelsWithText(panel, " either way").size());
 	}
 
 	/** The view of lot 3's tests: a long name for DK: Prime only. */
@@ -299,7 +392,7 @@ public class CaBossChecklistPanelTest
 		progress.put(5, new CaCompletion.Progress(6, 2));
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
-		return ChecklistView.build(labels, names, progress, new HashMap<>(), true, false);
+		return ChecklistView.build(labels, names, progress, new HashMap<>(), true, false, Collections.emptyMap());
 	}
 
 	private static <T> List<T> all(Component root, Class<T> type)
@@ -416,6 +509,17 @@ public class CaBossChecklistPanelTest
 		assertEquals(Collections.emptyList(), recorder.calls);
 	}
 
+	@Test
+	public void theCardHasAWikiLink()
+	{
+		final CaBossChecklistPanel panel = panel(new Recorder(), searchView());
+		pressLeft(labelsWithText(panel, "Barrows").get(0).getParent());
+		assertNotNull(card(panel));
+		final List<JLabel> wiki = labelsWithText(panel, "Wiki");
+		assertEquals(1, wiki.size());
+		assertTrue(wiki.get(0) instanceof LinkLabel);
+	}
+
 	/** The page answer naming a PNG on the wiki's host. */
 	private static final String PAGE_WITH_PICTURE = "{\"query\":{\"pages\":[{\"title\":\"Zulrah\",\"thumbnail\":{\"source\":"
 		+ "\"https://oldschool.runescape.wiki/images/thumb/Zulrah.png/128px-Zulrah.png?abc\",\"width\":128,\"height\":40}}]}}";
@@ -479,7 +583,8 @@ public class CaBossChecklistPanelTest
 	{
 		final CaBossChecklistPanel[] self = new CaBossChecklistPanel[1];
 		final WikiPictures pictures = new WikiPictures(factory, new Gson(), () -> self[0].pictureArrived());
-		self[0] = new CaBossChecklistPanel(new TestSettings(true), new Recorder(), pictures);
+		self[0] = new CaBossChecklistPanel(new TestSettings(true), new Recorder(), pictures,
+			(t, q, y) -> false);
 		self[0].show(searchView());
 		return self[0];
 	}
@@ -589,7 +694,7 @@ public class CaBossChecklistPanelTest
 		final CaBossChecklistPanel panel = panel(new Recorder(), tasksView());
 		pressLeft(oneLabel(panel, "DK: Prime").getParent());
 		final JLabel seer = oneLabel(panel, "Death to the Seer King");
-		assertEquals(0, labelsWithText(panel, "Wiki").size());
+		assertEquals(1, labelsWithText(panel, "Wiki").size());
 		pressLeft(seer.getParent());
 		boolean described = false;
 		for (JLabel label : all(panel, JLabel.class))
@@ -597,14 +702,14 @@ public class CaBossChecklistPanelTest
 			described |= label.getText() != null && label.getText().replace("<br>", " ").contains("whilst under attack by Dagannoth Supreme");
 		}
 		assertTrue(described);
-		assertEquals(1, labelsWithText(panel, "Wiki").size());
+		assertEquals(2, labelsWithText(panel, "Wiki").size());
 
 		pressLeft(oneLabel(panel, "Death to the Seer King").getParent());
 		for (JLabel label : all(panel, JLabel.class))
 		{
 			assertFalse(label.getText() != null && label.getText().replace("<br>", " ").contains("whilst under attack by Dagannoth Supreme"));
 		}
-		assertEquals(0, labelsWithText(panel, "Wiki").size());
+		assertEquals(1, labelsWithText(panel, "Wiki").size());
 	}
 
 	/**
@@ -617,9 +722,9 @@ public class CaBossChecklistPanelTest
 		final CaBossChecklistPanel panel = panel(new Recorder(), tasksView());
 		pressLeft(oneLabel(panel, "DK: Prime").getParent());
 		pressLeft(oneLabel(panel, "Death to the Seer King"));
-		assertEquals(1, labelsWithText(panel, "Wiki").size());
+		assertEquals(2, labelsWithText(panel, "Wiki").size());
 		pressLeft(oneLabel(panel, "Death to the Seer King"));
-		assertEquals(0, labelsWithText(panel, "Wiki").size());
+		assertEquals(1, labelsWithText(panel, "Wiki").size());
 	}
 
 	@Test
@@ -634,7 +739,7 @@ public class CaBossChecklistPanelTest
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 1));
 		final CaBossChecklistPanel panel = panel(new Recorder(),
-			ChecklistView.build(labels, Collections.emptyMap(), progress, Collections.emptyMap(), true, true));
+			ChecklistView.build(labels, Collections.emptyMap(), progress, Collections.emptyMap(), true, true, Collections.emptyMap()));
 		final Color quiet = ViewParts.quiet("").getForeground();
 		assertEquals(new Color(0xFFFF00), oneLabel(panel, "Barrows").getForeground());
 		assertEquals(new Color(0x0DC10D), oneLabel(panel, "DK: Prime").getForeground());
@@ -642,5 +747,191 @@ public class CaBossChecklistPanelTest
 		assertEquals(quiet, oneLabel(panel, "Done").getForeground());
 		assertEquals(quiet, oneLabel(panel, "2 left").getForeground());
 		assertEquals(quiet, oneLabel(panel, "7 left").getForeground());
+	}
+
+	/** The view of the dot tests: Barrows and Zulrah override the account when marked. */
+	private static ChecklistView viewSeen(Map<Integer, Mark> marks, boolean auto, Map<Integer, Mark> seen)
+	{
+		final Map<Integer, String> labels = new HashMap<>();
+		labels.put(5, "Barrows");
+		labels.put(19, "DK: Prime");
+		labels.put(72, "Zulrah");
+		final Map<Integer, CaCompletion.Progress> progress = new HashMap<>();
+		progress.put(5, new CaCompletion.Progress(6, 2));
+		progress.put(19, new CaCompletion.Progress(4, 4));
+		progress.put(72, new CaCompletion.Progress(8, 8));
+		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, auto, false, seen);
+	}
+
+	private static Map<Integer, Mark> only(int id, Mark mark)
+	{
+		final Map<Integer, Mark> marks = new HashMap<>();
+		marks.put(id, mark);
+		return marks;
+	}
+
+	private static Map<Integer, Mark> fiveAndZulrah()
+	{
+		final Map<Integer, Mark> marks = only(5, Mark.DONE);
+		marks.put(72, Mark.NOT_DONE);
+		return marks;
+	}
+
+	/** The Manual half of the toggle: the label whose text starts "Manual". */
+	private static JLabel manualHalf(CaBossChecklistPanel panel)
+	{
+		for (JLabel label : all(panel, JLabel.class))
+		{
+			if (String.valueOf(label.getText()).startsWith("Manual"))
+			{
+				return label;
+			}
+		}
+		throw new AssertionError("no Manual half");
+	}
+
+	@Test
+	public void theDotShowsForAnUnseenOverride() throws Exception
+	{
+		SwingUtilities.invokeAndWait(CaBossChecklistPanelTest::dotShowsOnTheEdt);
+	}
+
+	/** Run on the EDT, as showLoggedOut clears the search box, which refuses any other thread. */
+	private static void dotShowsOnTheEdt()
+	{
+		final Recorder recorder = new Recorder();
+		final CaBossChecklistPanel unseen = panel(recorder, viewSeen(only(5, Mark.DONE), true, Collections.emptyMap()));
+		assertNotNull(manualHalf(unseen).getIcon());
+		assertEquals("A new mark overrides your account", manualHalf(unseen).getToolTipText());
+		final CaBossChecklistPanel seen = panel(recorder, viewSeen(only(5, Mark.DONE), true, only(5, Mark.DONE)));
+		assertNull(manualHalf(seen).getIcon());
+		assertNull(manualHalf(seen).getToolTipText());
+		final CaBossChecklistPanel same = panel(recorder, viewSeen(only(19, Mark.DONE), true, Collections.emptyMap()));
+		assertNull(manualHalf(same).getIcon());
+		final CaBossChecklistPanel off = panel(recorder, viewSeen(only(5, Mark.DONE), false, Collections.emptyMap()));
+		assertNull(manualHalf(off).getIcon());
+		unseen.showLoggedOut();
+		assertNull(manualHalf(unseen).getIcon());
+		assertTrue(recorder.calls.toString(), recorder.calls.isEmpty());
+	}
+
+	@Test
+	public void lookingAtManualRemembersAndClearsTheDot()
+	{
+		final Recorder recorder = new Recorder();
+		final ChecklistView unseen = viewSeen(fiveAndZulrah(), true, Collections.emptyMap());
+		final CaBossChecklistPanel panel = panel(recorder, unseen);
+		panel.onActivate();
+		assertTrue(recorder.calls.isEmpty());
+		assertNotNull(manualHalf(panel).getIcon());
+		press(manualHalf(panel));
+		assertEquals(Arrays.asList("remember [5=done,72=not-done]"), recorder.calls);
+		assertNull(manualHalf(panel).getIcon());
+		panel.show(viewSeen(fiveAndZulrah(), true, fiveAndZulrah()));
+		press(labelsWithText(panel, "Bosses").get(0));
+		assertNull(manualHalf(panel).getIcon());
+		assertEquals(1, recorder.calls.size());
+	}
+
+	@Test
+	public void aClosedSidebarRemembersNothingUntilItOpens()
+	{
+		final Recorder recorder = new Recorder();
+		final ChecklistView unseen = viewSeen(fiveAndZulrah(), true, Collections.emptyMap());
+		final CaBossChecklistPanel panel = panel(recorder, unseen);
+		press(manualHalf(panel));
+		assertTrue(recorder.calls.isEmpty());
+		panel.onActivate();
+		assertEquals(Arrays.asList("remember [5=done,72=not-done]"), recorder.calls);
+		panel.onDeactivate();
+		panel.show(unseen);
+		assertEquals(1, recorder.calls.size());
+	}
+
+	@Test
+	public void seenMarksThatNoLongerOverrideAreForgotten()
+	{
+		final Recorder recorder = new Recorder();
+		panel(recorder, viewSeen(only(19, Mark.DONE), true, only(19, Mark.DONE)));
+		assertEquals(Arrays.asList("remember []"), recorder.calls);
+	}
+
+	@Test
+	public void askingToHideAsksOnceAndHidesOnlyOnYes()
+	{
+		assertEquals("Hide the sidebar button...", CaBossChecklistPanel.HIDE_TEXT);
+		for (boolean answer : new boolean[] {true, false})
+		{
+			final List<String> asked = new ArrayList<>();
+			final TestSettings settings = new TestSettings(false);
+			final CaBossChecklistPanel panel = new CaBossChecklistPanel(settings, new Recorder(), noWiki(),
+				(title, question, yes) ->
+				{
+					asked.add(title + "|" + question + "|" + yes);
+					return answer;
+				});
+			panel.askToHide();
+			assertEquals(Collections.singletonList("Hide the sidebar button|" + CaBossChecklistPanel.HIDE_ASK + "|Hide"),
+				asked);
+			assertEquals(answer ? 1 : 0, settings.hidden);
+		}
+	}
+
+	@Test
+	public void theIconChoicesCarryTheirPictures()
+	{
+		final CaBossChecklistPanel panel = new CaBossChecklistPanel(new TestSettings(false), new Recorder(), noWiki(),
+			(t, q, y) -> false);
+		assertEquals(3, panel.iconItems.size());
+		assertEquals("2h coin and book", panel.iconItems.get(0).getText());
+		assertEquals("Book only", panel.iconItems.get(1).getText());
+		assertEquals("2h coin and CA letters", panel.iconItems.get(2).getText());
+		panel.iconPictures(null);
+		assertNull(panel.iconItems.get(0).picture);
+		assertNull(panel.iconItems.get(1).picture);
+		assertEquals(16, panel.iconItems.get(2).picture.getWidth());
+		assertEquals(16, panel.iconItems.get(2).picture.getHeight());
+		panel.iconPictures(new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB));
+		for (CaBossChecklistPanel.IconChoice item : panel.iconItems)
+		{
+			assertEquals(16, item.picture.getWidth());
+			assertEquals(16, item.picture.getHeight());
+		}
+	}
+
+	private static BufferedImage painted(CaBossChecklistPanel.IconChoice item)
+	{
+		final Dimension size = item.getPreferredSize();
+		item.setSize(size);
+		final BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = image.createGraphics();
+		item.paint(g);
+		g.dispose();
+		return image;
+	}
+
+	@Test
+	public void anIconChoiceDrawsItsPictureAtTheRight()
+	{
+		final CaBossChecklistPanel panel = new CaBossChecklistPanel(new TestSettings(false), new Recorder(), noWiki(),
+			(t, q, y) -> false);
+		final CaBossChecklistPanel.IconChoice item = panel.iconItems.get(0);
+		final JRadioButtonMenuItem plain = new JRadioButtonMenuItem(item.getText());
+		plain.setFont(item.getFont());
+		assertEquals(plain.getPreferredSize().width + 24, item.getPreferredSize().width);
+
+		final BufferedImage magenta = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = magenta.createGraphics();
+		g.setColor(Color.MAGENTA);
+		g.fillRect(0, 0, 16, 16);
+		g.dispose();
+		item.setPicture(magenta);
+		BufferedImage drawn = painted(item);
+		final int x = drawn.getWidth() - item.getInsets().right - 8;
+		final int y = drawn.getHeight() / 2;
+		assertEquals(Color.MAGENTA.getRGB(), drawn.getRGB(x, y));
+		item.setPicture(null);
+		drawn = painted(item);
+		assertFalse(Color.MAGENTA.getRGB() == drawn.getRGB(x, y));
 	}
 }

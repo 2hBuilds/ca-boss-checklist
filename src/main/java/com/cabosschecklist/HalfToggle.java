@@ -1,13 +1,19 @@
 package com.cabosschecklist;
 
+import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Ellipse2D;
 import java.util.function.IntConsumer;
+import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
@@ -31,6 +37,36 @@ final class HalfToggle extends JPanel
 	static final int TOGGLE_TEXT_MAX = 12;
 	/** The smallest size, so a box far narrower than the sidebar still ends. */
 	private static final int TOGGLE_TEXT_MIN = 6;
+
+	/** The side of the dot, in px. */
+	private static final int DOT_SIZE = 7;
+	/** The space between a half's word and its dot, in px. */
+	private static final int DOT_GAP = 5;
+	/** The dot: a filled orange circle, one shared icon. */
+	private static final Icon DOT = new Icon()
+	{
+		@Override
+		public void paintIcon(Component c, Graphics g, int x, int y)
+		{
+			final Graphics2D g2 = (Graphics2D) g.create();
+			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setColor(ColorScheme.BRAND_ORANGE);
+			g2.fill(new Ellipse2D.Float(x, y, DOT_SIZE, DOT_SIZE));
+			g2.dispose();
+		}
+
+		@Override
+		public int getIconWidth()
+		{
+			return DOT_SIZE;
+		}
+
+		@Override
+		public int getIconHeight()
+		{
+			return DOT_SIZE;
+		}
+	};
 
 	private final JLabel[] halves = new JLabel[2];
 	/** Which half is lit: 0, 1, or -1 before the caller first says. */
@@ -122,6 +158,21 @@ final class HalfToggle extends JPanel
 	}
 
 	/**
+	 * Puts the dot after half {@code index}'s word and sets the half's tooltip to {@code tip}; a null {@code tip}
+	 * removes both. Fits the words again.
+	 */
+	void setDot(int index, String tip)
+	{
+		final JLabel half = halves[index];
+		half.setIcon(tip == null ? null : DOT);
+		half.setHorizontalTextPosition(SwingConstants.LEADING);
+		half.setIconTextGap(DOT_GAP);
+		half.setToolTipText(tip);
+		revalidate();
+		repaint();
+	}
+
+	/**
 	 * The halves are equal (the second takes the odd pixel) and both words are set in one size: the largest whole size up
 	 * to {@link #TOGGLE_TEXT_MAX} at which each word, in the wider of the bold and plain faces, fits its half with
 	 * {@link #TOGGLE_AIR} px on each side.
@@ -161,7 +212,8 @@ final class HalfToggle extends JPanel
 		{
 			final String word = halves[i].getText();
 			final int text = Math.max(boldMetrics.stringWidth(word), plainMetrics.stringWidth(word));
-			if (text + 2 * TOGGLE_AIR > widths[i])
+			final int dot = halves[i].getIcon() == null ? 0 : DOT_SIZE + DOT_GAP;
+			if (text + dot + 2 * TOGGLE_AIR > widths[i])
 			{
 				return false;
 			}

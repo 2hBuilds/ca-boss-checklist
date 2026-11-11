@@ -2,6 +2,8 @@ package com.cabosschecklist;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -14,8 +16,9 @@ import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 
 /**
- * The Manual view: the player's marks in up to three groups, each row with its link words. Rebuilt on every update.
- * Choice: the caption sits 2 px above its first row and the note 8 px above the first group.
+ * The Manual view: the player's marks in one or two groups, each row holding the boss with a link that removes the mark
+ * and a line saying which colour the mark shows, instead of which, and how far the account is. Rebuilt on every update.
+ * Choice: the caption sits 2 px above its first row; the note's labels sit side by side, the spaces in their texts.
  */
 final class ManualView
 {
@@ -23,7 +26,7 @@ final class ManualView
 	private static final int GROUP_GAP = 8;
 	/** The space between rows, and between a caption and its first row, in px. */
 	private static final int ROW_GAP = 2;
-	/** The space between the link words of a row, in px. */
+	/** The space between a caption and its link, in px. */
 	private static final int LINK_GAP = 8;
 
 	private final MarkActions actions;
@@ -63,15 +66,21 @@ final class ManualView
 			empty.setBorder(new EmptyBorder(16, 0, 0, 0));
 			empty.add(ViewParts.centred("No marks yet", ViewParts.bold(12f), Color.WHITE));
 			empty.add(Box.createVerticalStrut(ROW_GAP));
-			empty.add(ViewParts.centred("Tick or untick a boss to add a mark", ViewParts.plain(11f), ColorScheme.LIGHT_GRAY_COLOR));
+			empty.add(ViewParts.centred("Tick or untick a boss to add a mark", ViewParts.plain(11f),
+				ColorScheme.LIGHT_GRAY_COLOR));
 			column.add(empty);
 			finish();
 			return;
 		}
-		column.add(line(ViewParts.quiet("Your marks win over your account"), null));
-		addGroup(view.group(Marks.Group.DISAGREE), "Disagree with your account", true, false);
-		addGroup(view.group(Marks.Group.NOT_NEEDED), "Not needed", false, true);
-		addGroup(view.group(Marks.Group.YOURS), "Your marks", false, false);
+		if (view.autoDetect)
+		{
+			addGroup(view.group(Marks.Group.DIFFERENT), "Your marks override your account", false);
+			addGroup(view.group(Marks.Group.SAME), "Same as your account", true);
+		}
+		else
+		{
+			addGroup(view.marked(), "Your marks", false);
+		}
 		finish();
 	}
 
@@ -95,7 +104,7 @@ final class ManualView
 	}
 
 	/** A group under its caption; nothing when it has no rows. */
-	private void addGroup(List<ChecklistView.Boss> bosses, String caption, boolean withKeep, boolean withRemoveAll)
+	private void addGroup(List<ChecklistView.Boss> bosses, String caption, boolean withRemoveAll)
 	{
 		if (bosses.isEmpty())
 		{
@@ -112,35 +121,58 @@ final class ManualView
 			}
 			removeAll = new LinkLabel("Remove all", 11f, () -> actions.remove(ids));
 		}
-		column.add(line(ViewParts.quiet(caption), removeAll));
+		column.add(line(ViewParts.label(caption + " (" + bosses.size() + ")", ViewParts.bold(11f), Color.WHITE),
+			removeAll));
 		for (ChecklistView.Boss boss : bosses)
 		{
 			column.add(Box.createVerticalStrut(ROW_GAP));
-			column.add(row(boss, withKeep));
+			column.add(row(boss));
 		}
 	}
 
-	/** A boss's row: the label with its link words at the right, and the detail under it. */
-	private JPanel row(ChecklistView.Boss boss, boolean withKeep)
+	/** A boss's row: its name and the remove sign, then a line saying what the mark does and the account's progress. */
+	private JPanel row(ChecklistView.Boss boss)
 	{
-		final JPanel links = new JPanel();
-		links.setLayout(new BoxLayout(links, BoxLayout.X_AXIS));
-		links.setOpaque(false);
-		if (withKeep)
-		{
-			links.add(new LinkLabel("Keep", 11f, () -> actions.keep(boss.id)));
-			links.add(Box.createHorizontalStrut(LINK_GAP));
-		}
-		links.add(new LinkLabel("Remove", 11f, () -> actions.remove(Collections.singletonList(boss.id))));
+		final JLabel name = ViewParts.label(boss.label, ViewParts.bold(12f), Color.WHITE);
+		name.setToolTipText(boss.label);
+		final LinkLabel remove = new LinkLabel("\u00d7", 12f, () -> actions.remove(Collections.singletonList(boss.id)));
+		remove.setToolTipText("Remove this mark");
 
-		final JPanel top = line(ViewParts.label(boss.label, ViewParts.bold(12f), Color.WHITE), null);
-		top.add(links, BorderLayout.EAST);
+		final JPanel note = new JPanel(new GridBagLayout());
+		note.setOpaque(false);
+		final List<JLabel> parts = new ArrayList<>();
+		parts.add(ViewParts.label(boss.shownWord(), ViewParts.plain(11f), ViewParts.colourOf(boss.shade)));
+		parts.add(ViewParts.quiet(boss.overrides() ? " instead of " : " either way"));
+		if (boss.overrides())
+		{
+			parts.add(ViewParts.label(boss.unmarkedWord(), ViewParts.plain(11f),
+				ViewParts.colourOf(boss.unmarkedShade)));
+		}
+		final JLabel progress = ViewParts.quiet(" \u00b7 " + boss.accountText());
+		progress.setToolTipText(boss.accountLine());
+		parts.add(progress);
+		final GridBagConstraints at = new GridBagConstraints();
+		at.anchor = GridBagConstraints.WEST;
+		at.gridx = 0;
+		at.gridy = 0;
+		for (JLabel part : parts)
+		{
+			note.add(part, at);
+			at.gridx++;
+		}
+		at.weightx = 1;
+		note.add(Box.createHorizontalGlue(), at);
+
+		final JPanel top = line(name, remove);
+		final JPanel lines = new JPanel(new BorderLayout());
+		lines.setOpaque(false);
+		lines.add(top, BorderLayout.NORTH);
+		lines.add(note, BorderLayout.CENTER);
 
 		final JPanel row = ViewParts.capped(new BorderLayout());
 		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		row.setBorder(new EmptyBorder(4, 6, 4, 6));
-		row.add(top, BorderLayout.NORTH);
-		row.add(ViewParts.quiet(boss.detail()), BorderLayout.CENTER);
+		row.add(lines, BorderLayout.CENTER);
 		return row;
 	}
 }

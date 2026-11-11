@@ -40,13 +40,6 @@ final class BossesView extends JPanel
 	/** The search box's height, in px. */
 	private static final int SEARCH_HEIGHT = 30;
 
-	/** The game's green for a finished boss's name. */
-	private static final Color NAME_GREEN = new Color(0x0DC10D);
-	/** The game's yellow for a boss with one or two tasks left. */
-	private static final Color NAME_YELLOW = new Color(0xFFFF00);
-	/** The game's own orange in its Monster list. */
-	private static final Color NAME_ORANGE = new Color(0xFF981F);
-
 	/** One boss's row: the box, the label and the status word. */
 	private static final class Row
 	{
@@ -98,8 +91,7 @@ final class BossesView extends JPanel
 		{
 			box.setSelected(boss.green);
 			name.setText(boss.label);
-			name.setForeground(boss.shade == CaCompletion.Shade.GREEN ? NAME_GREEN
-				: boss.shade == CaCompletion.Shade.YELLOW ? NAME_YELLOW : NAME_ORANGE);
+			name.setForeground(ViewParts.colourOf(boss.shade));
 			status.setText(boss.status());
 			chosen = isChosen;
 			paintGround();

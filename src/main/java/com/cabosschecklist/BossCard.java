@@ -15,6 +15,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.util.LinkBrowser;
 
 /**
  * The boss card under the search box: the wiki's picture in a 64 x 64 box, the boss's long name, its progress, a box
@@ -41,6 +42,7 @@ final class BossCard extends JPanel
 	private final JLabel progress = ViewParts.centred("", ViewParts.plain(12f), ColorScheme.LIGHT_GRAY_COLOR);
 	private final JCheckBox green = new JCheckBox("Green in the Tasks menu");
 	private final JLabel source = ViewParts.centred("", ViewParts.plain(11f), ColorScheme.LIGHT_GRAY_COLOR);
+	private final LinkLabel wiki = new LinkLabel("Wiki", 11f, this::openWiki);
 	/** The boss on the card; null before the first draw. */
 	private ChecklistView.Boss shown;
 
@@ -85,6 +87,18 @@ final class BossCard extends JPanel
 		add(green);
 		add(Box.createVerticalStrut(4));
 		add(source);
+		wiki.setAlignmentX(Component.CENTER_ALIGNMENT);
+		add(Box.createVerticalStrut(4));
+		add(wiki);
+	}
+
+	/** Opens the shown boss's wiki page at its Combat Achievements table; nothing before a boss is shown. */
+	private void openWiki()
+	{
+		if (shown != null)
+		{
+			LinkBrowser.browse(BossPictures.wikiUrl(shown.id, shown.name));
+		}
 	}
 
 	/** As wide as the column it sits in, never taller than its content. */

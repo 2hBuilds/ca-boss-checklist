@@ -19,6 +19,9 @@ interface MenuSettings
 
 	void setSidebarIcon(CaBossChecklistConfig.SidebarIcon icon);
 
+	/** Turns "Show the sidebar button" off. */
+	void hideSidebar();
+
 	/** Puts every setting back to its default. */
 	void resetToDefault();
 }

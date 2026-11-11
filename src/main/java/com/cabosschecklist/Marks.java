@@ -20,12 +20,10 @@ final class Marks
 	/** Where a mark is listed in the Manual view. */
 	enum Group
 	{
-		/** A mark that differs from the account and was made while the switch was off. */
-		DISAGREE,
-		/** A mark the account now gives by itself. */
-		NOT_NEEDED,
-		/** Every other mark. */
-		YOURS
+		/** A mark whose answer differs from what the account alone gives. */
+		DIFFERENT,
+		/** A mark whose answer is what the account alone gives. */
+		SAME
 	}
 
 	/**
@@ -70,6 +68,11 @@ final class Marks
 
 	private static Mark byToken(String token)
 	{
+		// 0.0.1 and 0.0.2 also wrote "done-kept" and "not-done-kept"; they read as the plain marks.
+		if (token.endsWith("-kept"))
+		{
+			return byToken(token.substring(0, token.length() - "-kept".length()));
+		}
 		for (Mark mark : Mark.values())
 		{
 			if (mark.token().equals(token))
@@ -112,29 +115,61 @@ final class Marks
 		return autoDetect && complete.contains(id);
 	}
 
-	/**
-	 * What a click on a boss's box leaves: null for no mark (the choice equals what the account alone gives), else the
-	 * mark. A mark made while the switch is on is born kept.
-	 */
+	/** What a click on a boss's box leaves: null for no mark (the choice equals the account alone), else the mark. */
 	static Mark flip(boolean greenNow, boolean accountGreen, boolean autoDetect)
 	{
 		final boolean want = !greenNow;
 		final boolean baseline = autoDetect && accountGreen;
-		return want == baseline ? null : Mark.of(want, autoDetect);
+		return want == baseline ? null : Mark.of(want);
 	}
 
 	/** Which Manual group {@code mark} is listed in, given the boss's counted tasks and its done tasks. */
-	static Group groupOf(Mark mark, int total, int done, boolean autoDetect)
+	static Group groupOf(Mark mark, int total, int done)
 	{
-		if (!autoDetect)
-		{
-			return Group.YOURS;
-		}
 		final boolean accountGreen = total > 0 && done == total;
-		if (mark.done() == accountGreen)
+		return mark.done() == accountGreen ? Group.SAME : Group.DIFFERENT;
+	}
+
+	/** The marks that take effect: {@code marks} itself while the sidebar button is shown, else none. */
+	static Map<Integer, Mark> inUse(Map<Integer, Mark> marks, boolean sidebarShown)
+	{
+		return sidebarShown ? marks : Collections.emptyMap();
+	}
+
+	/**
+	 * The seen marks after the player has (looking) or has not looked at the Manual tab: a copy of {@code overriding}
+	 * when looking, else the entries of {@code seen} that are still the same mark in {@code overriding}.
+	 */
+	static Map<Integer, Mark> seenAfter(Map<Integer, Mark> seen, Map<Integer, Mark> overriding, boolean looking)
+	{
+		final Map<Integer, Mark> next = new HashMap<>();
+		if (looking)
 		{
-			return Group.NOT_NEEDED;
+			next.putAll(overriding);
 		}
-		return total == 0 || mark.kept() ? Group.YOURS : Group.DISAGREE;
+		else
+		{
+			for (Map.Entry<Integer, Mark> entry : seen.entrySet())
+			{
+				if (entry.getValue() == overriding.get(entry.getKey()))
+				{
+					next.put(entry.getKey(), entry.getValue());
+				}
+			}
+		}
+		return Collections.unmodifiableMap(next);
+	}
+
+	/** Whether some overriding mark has not been seen: it has no equal entry in {@code seen}. */
+	static boolean hasUnseen(Map<Integer, Mark> seen, Map<Integer, Mark> overriding)
+	{
+		for (Map.Entry<Integer, Mark> entry : overriding.entrySet())
+		{
+			if (seen.get(entry.getKey()) != entry.getValue())
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 }

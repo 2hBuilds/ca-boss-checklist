@@ -14,8 +14,21 @@ import net.runelite.client.ui.FontManager;
 /** The small pieces the two views are made of: type, labels that Swing cuts with "...", and rows that keep their height. */
 final class ViewParts
 {
+	/** The game's green for a finished boss's name. */
+	static final Color GREEN = new Color(0x0DC10D);
+	/** The game's yellow for a boss with one or two tasks left. */
+	static final Color YELLOW = new Color(0xFFFF00);
+	/** The game's own orange in its Monster list. */
+	static final Color PLAIN = new Color(0xFF981F);
+
 	private ViewParts()
 	{
+	}
+
+	/** The colour the game draws a name in for {@code shade}. */
+	static Color colourOf(CaCompletion.Shade shade)
+	{
+		return shade == CaCompletion.Shade.GREEN ? GREEN : shade == CaCompletion.Shade.YELLOW ? YELLOW : PLAIN;
 	}
 
 	/** The default face, plain, at {@code size} px. */

@@ -36,7 +36,7 @@ dependencies {
 
 group = 'com.cabosschecklist'
 // Equal to Version.CURRENT and to version= in runelite-plugin.properties (RELEASE-TEXT-template.md, checklist 2).
-version = '0.0.2'
+version = '0.0.3'
 
 // The Hub reads runelite-plugin.properties from the repository root; the frame test reads it back off the classpath.
 processResources {

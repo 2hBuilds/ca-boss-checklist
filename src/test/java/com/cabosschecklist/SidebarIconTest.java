@@ -28,4 +28,12 @@ public class SidebarIconTest
 		{
 		}.almostDone());
 	}
+
+	@Test
+	public void showSidebarIsOnByDefault()
+	{
+		assertTrue(new CaBossChecklistConfig()
+		{
+		}.showSidebar());
+	}
 }

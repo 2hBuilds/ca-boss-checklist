@@ -10,7 +10,7 @@ import net.runelite.client.config.ConfigItem;
  * the keys are frozen at first release; renaming one silently discards every player's setting.
  *
  * <p>The player's per-boss marks are not an item: they live in the RuneScape profile under {@link #MARKS_KEY}, one
- * string per account, written by the sidebar.
+ * string per account, written by the sidebar, and so are the marks the player has seen, under {@link #SEEN_KEY}.
  */
 @ConfigGroup(CaBossChecklistConfig.GROUP)
 public interface CaBossChecklistConfig extends Config
@@ -26,11 +26,17 @@ public interface CaBossChecklistConfig extends Config
 	/** The switch that shows the wiki's picture of a boss on its card. */
 	String WIKI_PICTURES_KEY = "wikiPictures";
 
+	/** The switch that shows the plugin's sidebar button. */
+	String SHOW_SIDEBAR_KEY = "showSidebar";
+
 	/** The drop-down that picks the sidebar button's picture. */
 	String SIDEBAR_ICON_KEY = "sidebarIcon";
 
 	/** The profile key holding the account's marks, "id=token" entries joined by commas (see {@link Marks}). */
 	String MARKS_KEY = "marks";
+
+	/** The profile key holding the overriding marks the player has looked at, in the same form as the marks. */
+	String SEEN_KEY = "seenMarks";
 
 	@ConfigItem(
 		keyName = AUTO_DETECT_KEY,
@@ -66,10 +72,22 @@ public interface CaBossChecklistConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = SHOW_SIDEBAR_KEY,
+		name = "Show the sidebar button",
+		description = "Off: the button is hidden and names follow your account only. "
+			+ "Your marks are kept for when you turn it back on.",
+		position = 3
+	)
+	default boolean showSidebar()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = SIDEBAR_ICON_KEY,
 		name = "Sidebar icon",
 		description = "Which picture the plugin's sidebar button shows.",
-		position = 3
+		position = 4
 	)
 	default SidebarIcon sidebarIcon()
 	{

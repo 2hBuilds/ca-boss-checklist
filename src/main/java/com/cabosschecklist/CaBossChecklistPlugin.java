@@ -135,6 +135,8 @@ public class CaBossChecklistPlugin extends Plugin
 	private boolean boxLogged;
 
 	private NavigationButton navButton;
+	/** Whether the button is on the toolbar now (EDT, and start-up and shut-down only). */
+	private boolean buttonAdded;
 	private CaBossChecklistPanel panel;
 	private WikiPictures pictures;
 	/** The game's Combat Achievements book once RuneLite has drawn it (EDT); null before. */
@@ -147,6 +149,8 @@ public class CaBossChecklistPlugin extends Plugin
 	/** Null while logged out or before the first read. */
 	private volatile Map<Integer, CaCompletion.Progress> progress;
 	private volatile Map<Integer, Mark> marks = Collections.emptyMap();
+	/** The overriding marks this account's player has looked at. */
+	private volatile Map<Integer, Mark> seen = Collections.emptyMap();
 	/** Each boss's task rows; empty while logged out or before the first read. */
 	private volatile Map<Integer, List<CaCompletion.TaskLine>> taskLines = Collections.emptyMap();
 	/** The task words, read once with the tasks (game thread). */
@@ -167,14 +171,25 @@ public class CaBossChecklistPlugin extends Plugin
 	protected void startUp()
 	{
 		pictures = new WikiPictures(okHttpClient, gson, this::pictureArrived);
-		panel = new CaBossChecklistPanel(new Settings(), new Actions(), pictures);
+		panel = new CaBossChecklistPanel(new Settings(), new Actions(), pictures,
+			(title, question, yes) -> ConfirmDialog.ask(SwingUtilities.getWindowAncestor(panel),
+				navButton == null ? null : navButton.getIcon(), title, question, yes));
+		panel.iconPictures(null);
 		navButton = navigationButton(NavIcon.create());
 		shown = CaBossChecklistConfig.SidebarIcon.COIN_AND_LETTERS;
-		clientToolbar.addNavigation(navButton);
+		if (config.showSidebar())
+		{
+			clientToolbar.addNavigation(navButton);
+			buttonAdded = true;
+		}
 		final AsyncBufferedImage drawn = itemManager.getImage(ItemID.CA_BOOK);
 		drawn.onLoaded(() -> SwingUtilities.invokeLater(() ->
 		{
 			book = drawn;
+			if (panel != null)
+			{
+				panel.iconPictures(book);
+			}
 			applyIcon();
 		}));
 		reloadMarks();
@@ -196,8 +211,11 @@ public class CaBossChecklistPlugin extends Plugin
 
 	/**
 	 * Shows the picture the setting asks for (EDT): the drawn icon while RuneLite has not drawn the book, else the chosen
-	 * one. A button's icon cannot change, so a different picture swaps the button; the settings menu is closed first, and
-	 * the panel is opened again if it was showing. Nothing is swapped when the picture would not change, and nothing
+	 * one. A button's icon cannot change, so a different picture swaps the button; the settings menu is closed first. RuneLite
+	 * only queues a button's removal and addition on the Swing thread while {@code openPanel} runs at once, so opening
+	 * the new button here would land before the add, and RuneLite would fall back to another plugin's tab when the old
+	 * button goes; {@link IconSwap} queues the open after the add, if the panel was showing. With the sidebar button
+	 * hidden the toolbar is not touched. Nothing is swapped when the picture would not change, and nothing
 	 * happens after {@code shutDown}, which has dropped the button.
 	 */
 	private void applyIcon()
@@ -214,14 +232,38 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 		final boolean wasShowing = panel.isShowing();
 		panel.closeMenu();
-		clientToolbar.removeNavigation(navButton);
+		final NavigationButton old = navButton;
 		navButton = navigationButton(NavIcon.icon(config.sidebarIcon(), book));
-		clientToolbar.addNavigation(navButton);
-		if (wasShowing)
+		if (buttonAdded)
 		{
-			clientToolbar.openPanel(navButton);
+			new IconSwap<NavigationButton>(clientToolbar::removeNavigation, clientToolbar::addNavigation,
+				clientToolbar::openPanel, () -> navButton, SwingUtilities::invokeLater)
+				.swap(old, navButton, wasShowing);
 		}
 		shown = wanted;
+	}
+
+	/**
+	 * Adds or removes the sidebar button to match "Show the sidebar button" (EDT); nothing after {@code shutDown}.
+	 * Turned off, the panel's menu is closed first.
+	 */
+	private void applySidebar()
+	{
+		if (navButton == null || panel == null)
+		{
+			return;
+		}
+		if (config.showSidebar() && !buttonAdded)
+		{
+			clientToolbar.addNavigation(navButton);
+			buttonAdded = true;
+		}
+		else if (!config.showSidebar() && buttonAdded)
+		{
+			panel.closeMenu();
+			clientToolbar.removeNavigation(navButton);
+			buttonAdded = false;
+		}
 	}
 
 	/** The settings menu's view of the config: reads through {@code config}, writes through {@code configManager}. */
@@ -276,6 +318,12 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 
 		@Override
+		public void hideSidebar()
+		{
+			configManager.setConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.SHOW_SIDEBAR_KEY, false);
+		}
+
+		@Override
 		public void resetToDefault()
 		{
 			configManager.unsetConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.AUTO_DETECT_KEY);
@@ -288,11 +336,12 @@ public class CaBossChecklistPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
-		if (navButton != null)
+		if (navButton != null && buttonAdded)
 		{
 			clientToolbar.removeNavigation(navButton);
-			navButton = null;
 		}
+		navButton = null;
+		buttonAdded = false;
 		originalColours.clear();
 		boxLogged = false;
 		panel = null;
@@ -307,12 +356,15 @@ public class CaBossChecklistPlugin extends Plugin
 		progress = null;
 		taskLines = Collections.emptyMap();
 		marks = Collections.emptyMap();
+		seen = Collections.emptyMap();
 	}
 
-	/** Reads this account's marks from the RuneScape profile. */
+	/** Reads this account's marks and the marks it has seen from the RuneScape profile. */
 	private void reloadMarks()
 	{
 		marks = Marks.parse(configManager.getRSProfileConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.MARKS_KEY));
+		seen = Marks.parse(configManager.getRSProfileConfiguration(CaBossChecklistConfig.GROUP,
+			CaBossChecklistConfig.SEEN_KEY));
 	}
 
 	/** Asks the EDT to draw the newest state. */
@@ -346,8 +398,8 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 		else
 		{
-			target.show(ChecklistView.build(labels, names, current, marks, config.autoDetect(), config.almostDone())
-				.withTasks(taskLines));
+			target.show(ChecklistView.build(labels, names, current, marks, config.autoDetect(), config.almostDone(),
+				seen).withTasks(taskLines));
 		}
 	}
 
@@ -378,19 +430,6 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 
 		@Override
-		public void keep(int id)
-		{
-			final Mark mark = marks.get(id);
-			if (progress == null || configManager.getRSProfileKey() == null || mark == null)
-			{
-				return;
-			}
-			final Map<Integer, Mark> changed = new HashMap<>(marks);
-			changed.put(id, mark.asKept());
-			write(changed);
-		}
-
-		@Override
 		public void remove(List<Integer> ids)
 		{
 			if (progress == null || configManager.getRSProfileKey() == null)
@@ -402,17 +441,33 @@ public class CaBossChecklistPlugin extends Plugin
 			write(changed);
 		}
 
+		@Override
+		public void remember(Map<Integer, Mark> next)
+		{
+			if (progress == null || configManager.getRSProfileKey() == null)
+			{
+				return;
+			}
+			store(CaBossChecklistConfig.SEEN_KEY, next);
+		}
+
 		/** Stores the marks; the ConfigChanged that follows reloads and redraws. */
 		private void write(Map<Integer, Mark> next)
+		{
+			store(CaBossChecklistConfig.MARKS_KEY, next);
+		}
+
+		/** Stores {@code next} under {@code key} of the profile, or unsets the key when there is nothing to keep. */
+		private void store(String key, Map<Integer, Mark> next)
 		{
 			final String value = Marks.format(next);
 			if (value.isEmpty())
 			{
-				configManager.unsetRSProfileConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.MARKS_KEY);
+				configManager.unsetRSProfileConfiguration(CaBossChecklistConfig.GROUP, key);
 			}
 			else
 			{
-				configManager.setRSProfileConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.MARKS_KEY, value);
+				configManager.setRSProfileConfiguration(CaBossChecklistConfig.GROUP, key, value);
 			}
 		}
 	}
@@ -472,6 +527,10 @@ public class CaBossChecklistPlugin extends Plugin
 			if (CaBossChecklistConfig.SIDEBAR_ICON_KEY.equals(event.getKey()))
 			{
 				SwingUtilities.invokeLater(this::applyIcon);
+			}
+			if (CaBossChecklistConfig.SHOW_SIDEBAR_KEY.equals(event.getKey()))
+			{
+				SwingUtilities.invokeLater(this::applySidebar);
 			}
 		}
 	}
@@ -600,7 +659,7 @@ public class CaBossChecklistPlugin extends Plugin
 	{
 		final boolean autoDetect = config.autoDetect();
 		final boolean almostDone = config.almostDone();
-		final Map<Integer, Mark> markNow = marks;
+		final Map<Integer, Mark> markNow = Marks.inUse(marks, config.showSidebar());
 		final Map<Integer, CaCompletion.Progress> progressNow = progress;
 		final Widget monsters = client.getWidget(InterfaceID.CaTasks.DROPDOWN_MONSTER);
 		if (monsters != null && !monsters.isHidden())

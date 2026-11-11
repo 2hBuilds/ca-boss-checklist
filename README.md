@@ -18,7 +18,7 @@
 1. **Open it.** Log in and click the book in the sidebar. Your progress is read straight away, with no menu to open first.
 2. **Tick a boss** to show it green, even with tasks left. Untick a finished one to keep it orange.
 3. **Search.** Type part of a name, like "vork" or "theatre".
-4. **Open a boss.** Click its name for its tasks. Click a task to read it, with a link to the wiki.
+4. **Open a boss.** Click its name for its tasks and a link to its wiki page. Click a task to read it, with its own wiki link.
 5. **Settings.** Click the settings icon to choose what turns green or yellow, turn the wiki pictures off, or change the sidebar icon.
 
 </td>
@@ -43,13 +43,14 @@
 ## Your marks
 
 - **Your mark wins.** A boss you tick or untick stays that way, whatever your account says, until you click it back.
-- **Manual tab.** Every boss you've marked, in one list, to keep or remove.
+- **Manual tab.** Every boss you've marked, with what the mark does, such as "Green instead of orange · 1 of 7 done". A dot on the tab shows when a new mark overrides your account.
 - **Only your marks.** Turn off "Green when all tasks done" and only the bosses you tick turn green.
 
 ## Good to know
 
 - **All 92 names.** Shortened ones like "DK: Prime" too, and the Slayer and quest entries the game's Bosses page leaves out.
 - **Per account.** Each account keeps its own marks.
+- **Colours only.** Choose "Hide the sidebar button..." in the settings menu. Names then follow your account only, and your marks are kept. Turn it back on in RuneLite's settings.
 - **Group Ironman and Deadman.** Tasks that don't count for your group size or world are left out, as the game does.
 - **Privacy.** Nothing about your account is sent anywhere. With wiki pictures on, only a boss's name goes to the OSRS wiki, to fetch its picture.
 - **Something wrong?** Tell us in the 2hBuilds Discord - the link is in the settings menu.
@@ -60,7 +61,7 @@
 
 <br>
 
-<img width="235" src="images/sidebar.png" alt="The Whisperer opened under its row: its picture, 4 of 9 tasks done, the Green in the Tasks menu box and every task with its tier and type">
+<img width="235" src="images/sidebar.png" alt="The Whisperer opened under its row: its picture, 4 of 9 tasks done, the Green in the Tasks menu box, a Wiki link and every task with its tier and type">
 
 </td>
 </tr>
