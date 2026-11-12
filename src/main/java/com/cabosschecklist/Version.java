@@ -7,7 +7,7 @@ package com.cabosschecklist;
 public final class Version
 {
 	/** The version this build ships as, {@code major.minor.patch}. */
-	public static final String CURRENT = "0.0.3";
+	public static final String CURRENT = "0.0.4";
 
 	private Version()
 	{

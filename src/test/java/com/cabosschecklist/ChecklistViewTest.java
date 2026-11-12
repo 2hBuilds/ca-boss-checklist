@@ -263,11 +263,40 @@ public class ChecklistViewTest
 		assertEquals("8 of 8 tasks done", progressBoss(8, 8).progressLine());
 		assertEquals("0 of 1 task done", progressBoss(1, 0).progressLine());
 		assertEquals("No tasks yet", progressBoss(0, 0).progressLine());
-		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(5, Mark.DONE), true, false, Collections.emptyMap());
-		assertEquals("Marked by you", on.sourceLine(boss(on, "Barrows")));
-		assertEquals("From your account", on.sourceLine(boss(on, "Zulrah")));
-		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(), false, false, Collections.emptyMap());
-		assertEquals("Tick to show it green", off.sourceLine(boss(off, "Zulrah")));
+	}
+
+	@Test
+	public void theCardNoteFollowsTheMark()
+	{
+		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(),
+			marks(5, Mark.DONE, 72, Mark.NOT_DONE, 19, Mark.DONE), true, false, Collections.emptyMap());
+		assertEquals(ChecklistView.CardNote.OVERRIDES, on.cardNote(boss(on, "Barrows")));
+		assertEquals(ChecklistView.CardNote.OVERRIDES, on.cardNote(boss(on, "Zulrah")));
+		assertEquals(ChecklistView.CardNote.SAME, on.cardNote(boss(on, "DK: Prime")));
+		assertEquals(ChecklistView.CardNote.NONE, on.cardNote(boss(on, "Abyssal Sire")));
+		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(5, Mark.DONE),
+			false, false, Collections.emptyMap());
+		assertEquals(ChecklistView.CardNote.MARK, off.cardNote(boss(off, "Barrows")));
+		assertEquals(ChecklistView.CardNote.HINT, off.cardNote(boss(off, "Zulrah")));
+	}
+
+	@Test
+	public void theCardNotesAreTellableApart()
+	{
+		assertFalse(ChecklistView.CardNote.NONE.tag);
+		assertEquals("", ChecklistView.CardNote.NONE.text);
+		assertFalse(ChecklistView.CardNote.HINT.tag);
+		assertFalse(ChecklistView.CardNote.HINT.text.isEmpty());
+		assertTrue(ChecklistView.CardNote.OVERRIDES.tag);
+		assertTrue(ChecklistView.CardNote.OVERRIDES.strong);
+		assertFalse(ChecklistView.CardNote.OVERRIDES.text.isEmpty());
+		assertTrue(ChecklistView.CardNote.SAME.tag);
+		assertFalse(ChecklistView.CardNote.SAME.strong);
+		assertFalse(ChecklistView.CardNote.SAME.text.isEmpty());
+		assertFalse(ChecklistView.CardNote.SAME.text.equals(ChecklistView.CardNote.OVERRIDES.text));
+		assertTrue(ChecklistView.CardNote.MARK.tag);
+		assertFalse(ChecklistView.CardNote.MARK.strong);
+		assertEquals("", ChecklistView.CardNote.MARK.text);
 	}
 
 	/** A boss with {@code total} counted tasks of which {@code done} are done. */

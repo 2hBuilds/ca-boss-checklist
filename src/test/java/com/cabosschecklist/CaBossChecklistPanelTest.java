@@ -520,6 +520,160 @@ public class CaBossChecklistPanelTest
 		assertTrue(wiki.get(0) instanceof LinkLabel);
 	}
 
+	/** Whether the component and each of its parents up to the card answer isVisible(): the tests have no window. */
+	private static boolean shown(Component component, BossCard card)
+	{
+		for (Component c = component; c != null; c = c.getParent())
+		{
+			if (!c.isVisible())
+			{
+				return false;
+			}
+			if (c == card)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** The labels in the card that are shown and read {@code text}. */
+	private static List<JLabel> shownLabels(BossCard card, String text)
+	{
+		final List<JLabel> found = new ArrayList<>();
+		for (JLabel label : labelsIn(card, text))
+		{
+			if (shown(label, card))
+			{
+				found.add(label);
+			}
+		}
+		return found;
+	}
+
+	/** The card of {@code panel} after the row of Barrows (or {@code name}) is pressed. */
+	private static BossCard cardOf(CaBossChecklistPanel panel, String name)
+	{
+		for (JLabel label : labelsWithText(panel, name))
+		{
+			pressLeft(label.getParent());
+			final BossCard card = card(panel);
+			if (card != null)
+			{
+				return card;
+			}
+		}
+		throw new AssertionError(name);
+	}
+
+	private static MarkTag onlyTag(BossCard card)
+	{
+		final List<MarkTag> tags = all(card, MarkTag.class);
+		assertEquals(1, tags.size());
+		return tags.get(0);
+	}
+
+	@Test
+	public void anUntouchedCardSaysNothingUnderItsBox()
+	{
+		final CaBossChecklistPanel panel = panel(new Recorder(), searchView());
+		pressLeft(labelsWithText(panel, "Barrows").get(0).getParent());
+		final BossCard card = card(panel);
+		assertNotNull(card);
+		assertFalse(shown(onlyTag(card), card));
+		for (ChecklistView.CardNote note : ChecklistView.CardNote.values())
+		{
+			if (!note.text.isEmpty())
+			{
+				assertTrue(note.text, shownLabels(card, note.text).isEmpty());
+			}
+		}
+		assertTrue(labelsWithText(panel, "From your account").isEmpty());
+		assertTrue(labelsWithText(panel, "Marked by you").isEmpty());
+	}
+
+	@Test
+	public void aMarkThatOverridesShowsTheOrangeTag()
+	{
+		final BossCard barrows = cardOf(panel(new Recorder(), view(only(5, Mark.DONE))), "Barrows");
+		assertTrue(shown(onlyTag(barrows), barrows));
+		assertTrue(onlyTag(barrows).strong);
+		assertEquals(1, shownLabels(barrows, ChecklistView.CardNote.OVERRIDES.text).size());
+		final BossCard prime = cardOf(panel(new Recorder(), view(only(19, Mark.DONE))), "DK: Prime");
+		assertTrue(shown(onlyTag(prime), prime));
+		assertFalse(onlyTag(prime).strong);
+		assertEquals(1, shownLabels(prime, ChecklistView.CardNote.SAME.text).size());
+	}
+
+	@Test
+	public void withAutoOffTheCardKeepsItsHintAndAQuietTag()
+	{
+		final BossCard hint = cardOf(panel(new Recorder(), viewSeen(new HashMap<>(), false, Collections.emptyMap())),
+			"Barrows");
+		assertFalse(shown(onlyTag(hint), hint));
+		assertEquals(1, shownLabels(hint, ChecklistView.CardNote.HINT.text).size());
+		final BossCard marked = cardOf(panel(new Recorder(), viewSeen(only(5, Mark.DONE), false, Collections.emptyMap())),
+			"Barrows");
+		assertTrue(shown(onlyTag(marked), marked));
+		assertFalse(onlyTag(marked).strong);
+		for (ChecklistView.CardNote note : ChecklistView.CardNote.values())
+		{
+			if (!note.text.isEmpty())
+			{
+				assertTrue(note.text, shownLabels(marked, note.text).isEmpty());
+			}
+		}
+	}
+
+	@Test
+	public void theNoteTakesNoRoomWhenThereIsNothingToSay()
+	{
+		final BossCard untouched = cardOf(panel(new Recorder(), view(new HashMap<>())), "Barrows");
+		final BossCard marked = cardOf(panel(new Recorder(), view(only(5, Mark.DONE))), "Barrows");
+		final int more = marked.getPreferredSize().height - untouched.getPreferredSize().height;
+		assertTrue("the marked card is " + more + " px taller", more >= 12 && more <= 30);
+		assertTrue(onlyTag(marked).getParent().getPreferredSize().width <= 203);
+	}
+
+	@Test
+	public void theHintAloneKeepsItsSizeAndCentre() throws Exception
+	{
+		final List<String> problems = new ArrayList<>();
+		SwingUtilities.invokeAndWait(() ->
+		{
+			final CaBossChecklistPanel panel = panel(new Recorder(),
+				viewSeen(new HashMap<>(), false, Collections.emptyMap()));
+			panel.setSize(242, 560);
+			final BossCard card = cardOf(panel, "Barrows");
+			layOut(panel);
+			final List<JLabel> hints = shownLabels(card, ChecklistView.CardNote.HINT.text);
+			if (hints.size() != 1)
+			{
+				problems.add("hint labels shown: " + hints.size());
+				return;
+			}
+			final JLabel hint = hints.get(0);
+			if (hint.getWidth() < hint.getPreferredSize().width)
+			{
+				problems.add("width " + hint.getWidth() + " of " + hint.getPreferredSize().width);
+			}
+			if (hint.getHeight() < hint.getPreferredSize().height)
+			{
+				problems.add("height " + hint.getHeight() + " of " + hint.getPreferredSize().height);
+			}
+			int centre = hint.getWidth() / 2;
+			for (Component c = hint; c != card; c = c.getParent())
+			{
+				centre += c.getX();
+			}
+			if (Math.abs(centre - card.getWidth() / 2.0) > 2)
+			{
+				problems.add("centre " + centre + " of a card " + card.getWidth() + " wide");
+			}
+		});
+		assertTrue(problems.toString(), problems.isEmpty());
+	}
+
 	/** The page answer naming a PNG on the wiki's host. */
 	private static final String PAGE_WITH_PICTURE = "{\"query\":{\"pages\":[{\"title\":\"Zulrah\",\"thumbnail\":{\"source\":"
 		+ "\"https://oldschool.runescape.wiki/images/thumb/Zulrah.png/128px-Zulrah.png?abc\",\"width\":128,\"height\":40}}]}}";

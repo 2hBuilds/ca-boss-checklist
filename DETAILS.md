@@ -22,7 +22,7 @@ Click a boss's name to open it under its row. Click it again to close it.
 
 - **Its picture**, from the OSRS wiki, when "Wiki pictures" is on.
 - **Its full name and progress**, such as "4 of 9 tasks done".
-- **"Green in the Tasks menu"**, the same box as the row's. Under it, where the green comes from: "From your account", "Marked by you", or "Tick to show it green" when "Green when all tasks done" is off.
+- **"Green in the Tasks menu"**, the same box as the row's. Under it, nothing while the boss follows your account. Once you tick or untick the box yourself, a tag appears: **MANUAL**, outlined in orange and followed by "overrides your progress" while your mark differs from your account, or in grey with "same as your progress" once it no longer does. The Manual tab lists every mark. Clicking the box back removes an overriding mark. With "Green when all tasks done" off, an unmarked boss reads "Tick to show it green" and a marked one shows the grey tag alone.
 - **A Wiki link** to the boss's page on the OSRS wiki, at its Combat Achievements table.
 - **Its tasks**, by tier and then name: a tick for each task your account has done, the task's name, and its tier and type, such as "Elite · Speed". Click a task to read its description, with a Wiki link that searches the wiki for it. Click it again to close it.
 

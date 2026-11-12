@@ -42,7 +42,7 @@
 
 ## Your marks
 
-- **Your mark wins.** A boss you tick or untick stays that way, whatever your account says, until you click it back.
+- **Your mark wins.** A boss you tick or untick stays that way, whatever your account says, until you click it back. A marked boss shows a **MANUAL** tag on its card.
 - **Manual tab.** Every boss you've marked, with what the mark does, such as "Green instead of orange · 1 of 7 done". A dot on the tab shows when a new mark overrides your account.
 - **Only your marks.** Turn off "Green when all tasks done" and only the bosses you tick turn green.
 

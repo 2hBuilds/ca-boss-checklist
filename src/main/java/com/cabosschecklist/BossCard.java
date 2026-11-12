@@ -19,8 +19,11 @@ import net.runelite.client.util.LinkBrowser;
 
 /**
  * The boss card under the search box: the wiki's picture in a 64 x 64 box, the boss's long name, its progress, a box
- * that says whether the boss shows green in the Tasks menu, and where that green comes from. Everything is centred.
- * Choice: the picture box and its 6 px gap are one holder that is hidden together.
+ * that says whether the boss shows green in the Tasks menu, and under it the note row: the tag (the word {@link MarkTag#TEXT}) and some
+ * words, shown only when the boss has a mark or the hint "Tick to show it green" applies, and taking no height at all
+ * when hidden. Everything is centred.
+ * Choice: the picture box and its 6 px gap are one holder that is hidden together; the note row holds its own 4 px gap
+ * above, so hiding the row hides the gap.
  */
 final class BossCard extends JPanel
 {
@@ -41,7 +44,17 @@ final class BossCard extends JPanel
 	private final JLabel name = ViewParts.centred("", ViewParts.bold(13f), Color.WHITE);
 	private final JLabel progress = ViewParts.centred("", ViewParts.plain(12f), ColorScheme.LIGHT_GRAY_COLOR);
 	private final JCheckBox green = new JCheckBox("Green in the Tasks menu");
-	private final JLabel source = ViewParts.centred("", ViewParts.plain(11f), ColorScheme.LIGHT_GRAY_COLOR);
+	private final MarkTag tag = new MarkTag();
+	/** The words after the tag; never squeezed in height, or BoxLayout would give a lone one half its height. */
+	private final JLabel words = new JLabel()
+	{
+		@Override
+		public Dimension getMinimumSize()
+		{
+			return new Dimension(0, getPreferredSize().height);
+		}
+	};
+	private final JPanel noteRow = ViewParts.capped(null);
 	private final LinkLabel wiki = new LinkLabel("Wiki", 11f, this::openWiki);
 	/** The boss on the card; null before the first draw. */
 	private ChecklistView.Boss shown;
@@ -85,11 +98,50 @@ final class BossCard extends JPanel
 		add(progress);
 		add(Box.createVerticalStrut(6));
 		add(green);
-		add(Box.createVerticalStrut(4));
-		add(source);
+		buildNoteRow();
+		add(noteRow);
 		wiki.setAlignmentX(Component.CENTER_ALIGNMENT);
 		add(Box.createVerticalStrut(4));
 		add(wiki);
+	}
+
+	/** The note row: a 4 px gap, then the tag and its words on one line, centred together, at most {@link #NAME_WIDTH} wide. */
+	private void buildNoteRow()
+	{
+		noteRow.setLayout(new BoxLayout(noteRow, BoxLayout.Y_AXIS));
+		noteRow.setOpaque(false);
+		noteRow.setAlignmentX(Component.CENTER_ALIGNMENT);
+		final JPanel line = new JPanel()
+		{
+			@Override
+			public Dimension getPreferredSize()
+			{
+				final Dimension size = super.getPreferredSize();
+				return new Dimension(Math.min(size.width, NAME_WIDTH), size.height);
+			}
+
+			/** As wide as the column: BoxLayout would give a narrower, centre-aligned part half its width at the left. */
+			@Override
+			public Dimension getMaximumSize()
+			{
+				return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+			}
+		};
+		line.setLayout(new BoxLayout(line, BoxLayout.X_AXIS));
+		line.setOpaque(false);
+		line.setAlignmentX(Component.CENTER_ALIGNMENT);
+		tag.setAlignmentY(Component.CENTER_ALIGNMENT);
+		words.setAlignmentY(Component.CENTER_ALIGNMENT);
+		words.setBorder(new EmptyBorder(0, 4, 0, 0));
+		words.setFont(ViewParts.plain(11f));
+		words.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		line.add(Box.createHorizontalGlue());
+		line.add(tag);
+		line.add(words);
+		line.add(Box.createHorizontalGlue());
+		noteRow.add(Box.createVerticalStrut(4));
+		noteRow.add(line);
+		noteRow.setVisible(false);
 	}
 
 	/** Opens the shown boss's wiki page at its Combat Achievements table; nothing before a boss is shown. */
@@ -115,7 +167,12 @@ final class BossCard extends JPanel
 		fitName(boss.name);
 		progress.setText(boss.progressLine());
 		green.setSelected(boss.green);
-		source.setText(view.sourceLine(boss));
+		final ChecklistView.CardNote note = view.cardNote(boss);
+		noteRow.setVisible(note != ChecklistView.CardNote.NONE);
+		tag.setVisible(note.tag);
+		tag.setStrong(note.strong);
+		words.setText(note.text);
+		words.setVisible(!note.text.isEmpty());
 		drawPicture();
 		revalidate();
 		repaint();

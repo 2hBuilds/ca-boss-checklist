@@ -207,14 +207,42 @@ final class ChecklistView
 		return lines == null ? Collections.emptyList() : lines;
 	}
 
-	/** The card's source line: where the boss's green comes from. */
-	String sourceLine(Boss boss)
+	/** What the boss card says under its box: a tag, some words, both or nothing. */
+	enum CardNote
 	{
-		if (boss.mark != null)
+		NONE(false, false, ""),
+		HINT(false, false, "Tick to show it green"),
+		OVERRIDES(true, true, "overrides your progress"),
+		SAME(true, false, "same as your progress"),
+		MARK(true, false, "");
+
+		/** Whether the tag (see {@link MarkTag#TEXT}) shows. */
+		final boolean tag;
+		/** Whether the tag is drawn strong, in orange (the mark overrides), rather than in grey. */
+		final boolean strong;
+		/** The words after the tag; empty for none. */
+		final String text;
+
+		CardNote(boolean tag, boolean strong, String text)
 		{
-			return "Marked by you";
+			this.tag = tag;
+			this.strong = strong;
+			this.text = text;
 		}
-		return autoDetect ? "From your account" : "Tick to show it green";
+	}
+
+	/** What the card says about {@code boss}: nothing for an unmarked boss while the account is followed. */
+	CardNote cardNote(Boss boss)
+	{
+		if (boss.mark == null)
+		{
+			return autoDetect ? CardNote.NONE : CardNote.HINT;
+		}
+		if (!autoDetect)
+		{
+			return CardNote.MARK;
+		}
+		return boss.group == Marks.Group.DIFFERENT ? CardNote.OVERRIDES : CardNote.SAME;
 	}
 
 	/** The status card's bold line. */
