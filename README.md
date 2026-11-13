@@ -3,6 +3,8 @@
 <p align="center">- A checklist of every Combat Achievements boss, with its tasks and what's left.<br>
 - Finished bosses, and any you tick, show green in the game's Tasks menu.</p>
 
+<p align="center"><img width="420" src="images/game.png" alt="The game's Combat Achievements Tasks menu: in the Monster list, finished bosses are green and bosses with one or two tasks left are yellow"></p>
+
 <table width="100%">
 <tr>
 <td valign="top">
