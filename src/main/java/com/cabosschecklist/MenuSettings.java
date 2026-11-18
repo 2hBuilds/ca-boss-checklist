@@ -1,15 +1,30 @@
 package com.cabosschecklist;
 
-/** What the sidebar's settings menu reads and writes: the plugin's settings, kept apart from RuneLite's config classes. */
+import java.awt.Component;
+
+/**
+ * What the sidebar's settings menu reads and writes: the plugin's settings, kept apart from RuneLite's config classes.
+ */
 interface MenuSettings
 {
 	boolean autoDetect();
 
 	void setAutoDetect(boolean on);
 
-	boolean almostDone();
+	/** When a name turns yellow. */
+	CaBossChecklistConfig.YellowWhen yellowWhen();
 
-	void setAlmostDone(boolean on);
+	/** Chooses when a name turns yellow. */
+	void setYellowWhen(CaBossChecklistConfig.YellowWhen when);
+
+	/** The colours chosen now. */
+	ColourSet colours();
+
+	/** Opens RuneLite's colour picker for {@code slot} beside {@code owner}; every change in it is stored at once. */
+	void pickColour(ColourSet.Slot slot, Component owner);
+
+	/** Puts the four colours back to their defaults. */
+	void resetColours();
 
 	boolean wikiPictures();
 

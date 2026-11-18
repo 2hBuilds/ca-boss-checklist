@@ -21,14 +21,73 @@ final class ViewParts
 	/** The game's own orange in its Monster list. */
 	static final Color PLAIN = new Color(0xFF981F);
 
+	/** The frame's default colour: a deep teal no name or tier word uses (the user's pick), for the frame round the chosen boss. */
+	static final Color FRAME = new Color(0x26716D);
+	/** The frame's line width, in px. */
+	static final int FRAME_WIDTH = 2;
+	/** The ground of the chosen boss's card, a touch darker than the rows. */
+	static final Color CARD_GROUND = new Color(36, 36, 36);
+	/** The ground of the box the tasks sit in. */
+	static final Color TASKS_GROUND = new Color(27, 27, 27);
+	/** The 1 px border of the tasks box. */
+	static final Color TASKS_BORDER = new Color(58, 58, 58);
+	/** The 1 px line between two tasks. */
+	static final Color TASK_LINE = new Color(42, 42, 42);
+	/** The lighter band behind an open task. */
+	static final Color OPEN_BAND = new Color(38, 38, 38);
+
+	/** The colours the player chose; null until the plugin sets them, which means {@link ColourSet#DEFAULTS}. */
+	private static volatile ColourSet chosen;
+
 	private ViewParts()
 	{
 	}
 
-	/** The colour the game draws a name in for {@code shade}. */
+	/** The colours the sidebar draws in now. */
+	static ColourSet colours()
+	{
+		final ColourSet set = chosen;
+		return set == null ? ColourSet.DEFAULTS : set;
+	}
+
+	/** Sets the colours the sidebar draws in from the next draw on (null: the defaults). */
+	static void useColours(ColourSet set)
+	{
+		chosen = set;
+	}
+
+	/** The frame round the opened boss, in the colour the player chose. */
+	static Color frame()
+	{
+		return colours().frame;
+	}
+
+	/** The colour of a tier word ("Easy" to "Grandmaster"), or null for any other word. */
+	static Color tierColour(String word)
+	{
+		switch (word == null ? "" : word)
+		{
+			case "Easy":
+				return new Color(168, 216, 168);
+			case "Medium":
+				return new Color(164, 200, 232);
+			case "Hard":
+				return new Color(143, 214, 207);
+			case "Elite":
+				return new Color(176, 164, 232);
+			case "Master":
+				return new Color(232, 164, 164);
+			case "Grandmaster":
+				return new Color(232, 210, 122);
+			default:
+				return null;
+		}
+	}
+
+	/** The colour a name is drawn in for {@code shade}: the game's own unless the player chose another. */
 	static Color colourOf(CaCompletion.Shade shade)
 	{
-		return shade == CaCompletion.Shade.GREEN ? GREEN : shade == CaCompletion.Shade.YELLOW ? YELLOW : PLAIN;
+		return colours().colourOf(shade);
 	}
 
 	/** The default face, plain, at {@code size} px. */

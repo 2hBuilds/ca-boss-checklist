@@ -70,7 +70,7 @@ public class ChecklistViewTest
 	@Test
 	public void rowsSortedByLabelWithStatus()
 	{
-		final ChecklistView view = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), true, false, Collections.emptyMap());
+		final ChecklistView view = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals(Arrays.asList("Abyssal Sire", "Barrows", "DK: Prime", "Fractured Archive, The", "Zulrah"), names(view.bosses));
 		final List<String> statuses = new ArrayList<>();
 		final List<Boolean> greens = new ArrayList<>();
@@ -86,10 +86,10 @@ public class ChecklistViewTest
 	@Test
 	public void headlineAndHelper()
 	{
-		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), true, false, Collections.emptyMap());
+		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals("1 of 5 done", on.headline());
 		assertEquals("Shown green in the Tasks menu", on.helper());
-		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), false, false, Collections.emptyMap());
+		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), false, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals("0 of 5 done", off.headline());
 		assertEquals("Only marked bosses show green", off.helper());
 	}
@@ -98,16 +98,16 @@ public class ChecklistViewTest
 	public void aMarkNeverChangesTheHelper()
 	{
 		final Map<Integer, Mark> some = marks(5, Mark.DONE, 72, Mark.NOT_DONE);
-		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, false, Collections.emptyMap());
+		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals("Shown green in the Tasks menu", on.helper());
-		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, false, false, Collections.emptyMap());
+		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, false, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals("Only marked bosses show green", off.helper());
 	}
 
 	private static ChecklistView groupsView()
 	{
 		return ChecklistView.build(labels(), Collections.emptyMap(), progress(),
-			marks(5, Mark.DONE, 19, Mark.DONE, 26, Mark.DONE, 72, Mark.NOT_DONE), true, false, Collections.emptyMap());
+			marks(5, Mark.DONE, 19, Mark.DONE, 26, Mark.DONE, 72, Mark.NOT_DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 	}
 
 	@Test
@@ -135,7 +135,7 @@ public class ChecklistViewTest
 		final Map<Integer, CaCompletion.Progress> nearly = progress();
 		nearly.put(5, new CaCompletion.Progress(6, 5));
 		final ChecklistView one = ChecklistView.build(labels(), Collections.emptyMap(), nearly,
-			marks(5, Mark.DONE), true, false, Collections.emptyMap());
+			marks(5, Mark.DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals("5 of 6 done", boss(one, "Barrows").accountText());
 		assertEquals("Your account: 1 task left", boss(one, "Barrows").accountLine());
 	}
@@ -146,7 +146,7 @@ public class ChecklistViewTest
 		final Map<Integer, CaCompletion.Progress> nearly = progress();
 		nearly.put(5, new CaCompletion.Progress(6, 5));
 		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), nearly,
-			marks(5, Mark.DONE, 72, Mark.NOT_DONE), true, true, Collections.emptyMap());
+			marks(5, Mark.DONE, 72, Mark.NOT_DONE), true, CaBossChecklistConfig.YellowWhen.ONE_OR_TWO, Collections.emptyMap());
 		assertEquals(CaCompletion.Shade.GREEN, boss(on, "Barrows").shade);
 		assertEquals(CaCompletion.Shade.YELLOW, boss(on, "Barrows").unmarkedShade);
 		assertEquals(CaCompletion.Shade.PLAIN, boss(on, "Zulrah").shade);
@@ -154,10 +154,10 @@ public class ChecklistViewTest
 		assertEquals(CaCompletion.Shade.PLAIN, boss(on, "Abyssal Sire").shade);
 		assertEquals(CaCompletion.Shade.PLAIN, boss(on, "Abyssal Sire").unmarkedShade);
 		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), nearly,
-			marks(5, Mark.DONE, 72, Mark.NOT_DONE), true, false, Collections.emptyMap());
+			marks(5, Mark.DONE, 72, Mark.NOT_DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals(CaCompletion.Shade.PLAIN, boss(off, "Barrows").unmarkedShade);
 		final ChecklistView unfollowed = ChecklistView.build(labels(), Collections.emptyMap(), nearly,
-			marks(19, Mark.DONE), false, true, Collections.emptyMap());
+			marks(19, Mark.DONE), false, CaBossChecklistConfig.YellowWhen.ONE_OR_TWO, Collections.emptyMap());
 		assertEquals(CaCompletion.Shade.GREEN, boss(unfollowed, "DK: Prime").shade);
 		assertEquals(CaCompletion.Shade.PLAIN, boss(unfollowed, "DK: Prime").unmarkedShade);
 		assertEquals(CaCompletion.Shade.PLAIN, boss(unfollowed, "Zulrah").shade);
@@ -168,7 +168,7 @@ public class ChecklistViewTest
 	public void noteWords()
 	{
 		final Map<Integer, Mark> some = marks(5, Mark.DONE, 19, Mark.DONE, 72, Mark.NOT_DONE);
-		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, false,
+		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, CaBossChecklistConfig.YellowWhen.OFF,
 			Collections.emptyMap());
 		assertTrue(boss(on, "Barrows").overrides());
 		assertEquals("Green", boss(on, "Barrows").shownWord());
@@ -180,10 +180,10 @@ public class ChecklistViewTest
 		assertEquals("Green", boss(on, "DK: Prime").shownWord());
 		final Map<Integer, CaCompletion.Progress> nearly = progress();
 		nearly.put(5, new CaCompletion.Progress(6, 5));
-		final ChecklistView yellow = ChecklistView.build(labels(), Collections.emptyMap(), nearly, some, true, true,
+		final ChecklistView yellow = ChecklistView.build(labels(), Collections.emptyMap(), nearly, some, true, CaBossChecklistConfig.YellowWhen.ONE_OR_TWO,
 			Collections.emptyMap());
 		assertEquals("yellow", boss(yellow, "Barrows").unmarkedWord());
-		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, false, false,
+		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, false, CaBossChecklistConfig.YellowWhen.OFF,
 			Collections.emptyMap());
 		assertTrue(boss(off, "DK: Prime").overrides());
 		assertEquals("orange", boss(off, "DK: Prime").unmarkedWord());
@@ -196,21 +196,21 @@ public class ChecklistViewTest
 	{
 		final Map<Integer, Mark> some = marks(5, Mark.DONE, 19, Mark.DONE, 26, Mark.DONE, 72, Mark.NOT_DONE);
 		final Map<Integer, Mark> three = marks(5, Mark.DONE, 26, Mark.DONE, 72, Mark.NOT_DONE);
-		final ChecklistView fresh = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, false,
+		final ChecklistView fresh = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, CaBossChecklistConfig.YellowWhen.OFF,
 			Collections.emptyMap());
 		assertEquals(three, fresh.overriding());
 		assertTrue(fresh.unseen());
 		assertTrue(fresh.seenAfter(false).isEmpty());
 		assertEquals(three, fresh.seenAfter(true));
-		final ChecklistView part = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, false,
+		final ChecklistView part = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, CaBossChecklistConfig.YellowWhen.OFF,
 			marks(5, Mark.DONE, 19, Mark.DONE));
 		assertTrue(part.unseen());
 		assertEquals(marks(5, Mark.DONE), part.seenAfter(false));
-		final ChecklistView all = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, false,
+		final ChecklistView all = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, true, CaBossChecklistConfig.YellowWhen.OFF,
 			three);
 		assertFalse(all.unseen());
 		assertEquals(all.seen, all.seenAfter(false));
-		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, false, false,
+		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), some, false, CaBossChecklistConfig.YellowWhen.OFF,
 			marks(5, Mark.DONE, 19, Mark.DONE));
 		assertTrue(off.overriding().isEmpty());
 		assertFalse(off.unseen());
@@ -223,7 +223,7 @@ public class ChecklistViewTest
 	@Test
 	public void marksForUnknownIdsAreIgnored()
 	{
-		final ChecklistView view = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(99, Mark.DONE), true, false, Collections.emptyMap());
+		final ChecklistView view = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(99, Mark.DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals(0, view.markCount);
 		for (Marks.Group group : Marks.Group.values())
 		{
@@ -239,7 +239,7 @@ public class ChecklistViewTest
 		final Map<Integer, String> names = new HashMap<>();
 		names.put(19, "Dagannoth Prime");
 		names.put(5, " ");
-		final ChecklistView view = ChecklistView.build(labels(), names, progress(), marks(), true, false, Collections.emptyMap());
+		final ChecklistView view = ChecklistView.build(labels(), names, progress(), marks(), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		final ChecklistView.Boss prime = boss(view, "DK: Prime");
 		assertEquals("Dagannoth Prime", prime.name);
 		final ChecklistView.Boss barrows = boss(view, "Barrows");
@@ -269,13 +269,13 @@ public class ChecklistViewTest
 	public void theCardNoteFollowsTheMark()
 	{
 		final ChecklistView on = ChecklistView.build(labels(), Collections.emptyMap(), progress(),
-			marks(5, Mark.DONE, 72, Mark.NOT_DONE, 19, Mark.DONE), true, false, Collections.emptyMap());
+			marks(5, Mark.DONE, 72, Mark.NOT_DONE, 19, Mark.DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals(ChecklistView.CardNote.OVERRIDES, on.cardNote(boss(on, "Barrows")));
 		assertEquals(ChecklistView.CardNote.OVERRIDES, on.cardNote(boss(on, "Zulrah")));
 		assertEquals(ChecklistView.CardNote.SAME, on.cardNote(boss(on, "DK: Prime")));
 		assertEquals(ChecklistView.CardNote.NONE, on.cardNote(boss(on, "Abyssal Sire")));
 		final ChecklistView off = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(5, Mark.DONE),
-			false, false, Collections.emptyMap());
+			false, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals(ChecklistView.CardNote.MARK, off.cardNote(boss(off, "Barrows")));
 		assertEquals(ChecklistView.CardNote.HINT, off.cardNote(boss(off, "Zulrah")));
 	}
@@ -306,7 +306,7 @@ public class ChecklistViewTest
 		one.put(5, "Barrows");
 		final Map<Integer, CaCompletion.Progress> counts = new HashMap<>();
 		counts.put(5, new CaCompletion.Progress(total, done));
-		return ChecklistView.build(one, Collections.emptyMap(), counts, marks(), true, false, Collections.emptyMap()).bosses.get(0);
+		return ChecklistView.build(one, Collections.emptyMap(), counts, marks(), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap()).bosses.get(0);
 	}
 
 	@Test
@@ -317,7 +317,7 @@ public class ChecklistViewTest
 			new CaCompletion.TaskLine(198, "Dagannoth Prime Adept", "Kill Dagannoth Prime 25 times.", "Hard", "Kill Count", false),
 			new CaCompletion.TaskLine(199, "Death to the Seer King", "Kill Dagannoth Prime whilst under attack.", "Elite", "Mechanical", true),
 			new CaCompletion.TaskLine(200, "From One King to Another", "Kill Prime using a Rune Thrownaxe.", "Elite", "Mechanical", false));
-		final ChecklistView base = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), true, false, Collections.emptyMap());
+		final ChecklistView base = ChecklistView.build(labels(), Collections.emptyMap(), progress(), marks(72, Mark.NOT_DONE), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertTrue(base.tasksOf(19).isEmpty());
 		final Map<Integer, List<CaCompletion.TaskLine>> byBoss = new HashMap<>();
 		byBoss.put(19, four);
@@ -344,11 +344,11 @@ public class ChecklistViewTest
 		progress.put(2, new CaCompletion.Progress(4, 3));
 		progress.put(3, new CaCompletion.Progress(8, 3));
 		final Map<Integer, Mark> none = Collections.emptyMap();
-		final ChecklistView on = ChecklistView.build(labels, Collections.emptyMap(), progress, none, true, true, Collections.emptyMap());
+		final ChecklistView on = ChecklistView.build(labels, Collections.emptyMap(), progress, none, true, CaBossChecklistConfig.YellowWhen.ONE_OR_TWO, Collections.emptyMap());
 		assertEquals(CaCompletion.Shade.GREEN, boss(on, "Done Boss").shade);
 		assertEquals(CaCompletion.Shade.YELLOW, boss(on, "Close Boss").shade);
 		assertEquals(CaCompletion.Shade.PLAIN, boss(on, "Far Boss").shade);
-		final ChecklistView old = ChecklistView.build(labels, Collections.emptyMap(), progress, none, true, false, Collections.emptyMap());
+		final ChecklistView old = ChecklistView.build(labels, Collections.emptyMap(), progress, none, true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 		assertEquals(CaCompletion.Shade.PLAIN, boss(old, "Close Boss").shade);
 	}
 }

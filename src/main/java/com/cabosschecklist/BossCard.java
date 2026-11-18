@@ -65,7 +65,7 @@ final class BossCard extends JPanel
 		this.wikiPictures = wikiPictures;
 		this.pictures = pictures;
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-		setBackground(ColorScheme.DARK_GRAY_COLOR);
+		setBackground(ViewParts.CARD_GROUND);
 		setBorder(new EmptyBorder(PADDING, PADDING, PADDING, PADDING));
 
 		final Dimension box = new Dimension(BOX, BOX);

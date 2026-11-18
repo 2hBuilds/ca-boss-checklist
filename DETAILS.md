@@ -1,8 +1,8 @@
-# 2h CA Boss Checklist
+# 2h Combat Achievements
 
-> The full description of 2h CA Boss Checklist. The short version, with pictures, is the plugin's page on the Plugin Hub (the repository's README).
+> The full description of 2h Combat Achievements. The short version, with pictures, is the plugin's page on the Plugin Hub (the repository's README).
 
-A sidebar checklist of every boss in the game's Combat Achievements, with each boss's tasks and how many are left. Bosses you have finished, and any you mark yourself, show green in the game's own Combat Achievements Tasks menu, and bosses with one or two tasks left show yellow there.
+A sidebar checklist of every boss and monster in the game's Combat Achievements, with each one's tasks and how many are left. Ones you have finished, and any you mark yourself, show green in the game's own Combat Achievements Tasks menu, and ones that are nearly done show yellow there. You can change the colours and when a name turns yellow.
 
 ## The sidebar
 
@@ -13,12 +13,12 @@ Click the plugin's button in RuneLite's sidebar: the Combat Achievements book wi
 - **The search box** keeps the bosses whose name holds what you type, ignoring case. It matches the game's list name ("Whisperer, The") and the full name ("The Whisperer"), and opens the first match.
 - **Each row** is one name from the game's Monster list, in the same order, with:
   - a tick box: ticked means the name shows green in the game's Tasks menu;
-  - the name as the game's list writes it, in the colour the game shows it: green, yellow or orange;
+  - the name as the game's list writes it, in its colour: green, yellow or orange, unless you chose other colours;
   - where it stands: "3 left", "Done", "Marked" (you marked it) or "No tasks" (the game lists no tasks for it yet).
 
 ## A boss's card
 
-Click a boss's name to open it under its row. Click it again to close it.
+Click a boss's name to open it under its row, in a frame. Click it again to close it.
 
 - **Its picture**, from the OSRS wiki, when "Wiki pictures" is on.
 - **Its full name and progress**, such as "4 of 9 tasks done".
@@ -31,11 +31,20 @@ Click a boss's name to open it under its row. Click it again to close it.
 Open Combat Achievements, then Tasks, then the Monster list: the filter that says "All".
 
 - **Green:** every task for that boss is done on your account (the rule the game uses on its Bosses page), or you marked it done. Your mark always wins.
-- **Yellow:** one or two tasks left, with at least one done. A boss you marked done is green instead.
+- **Yellow:** a name that is almost done, by the rule you pick in "Yellow when". A boss you marked done is green instead, and a finished boss is never yellow.
+  - **1 or 2 tasks left** (the default): at least one task done, and one or two left.
+  - **Started:** at least one task done, not all.
+  - **Half done:** half the tasks done or more, not all.
+  - **Only Grandmaster left:** at least one task done, every task below Grandmaster done, and a Grandmaster task still open.
+  - **Off:** never yellow.
 - **The game's own orange:** everything else. "All" is never coloured.
 - **The Tier list** shows a tier green when the game counts it complete.
 
-The colour goes on the names in the open list and on the box that shows your current choice. It is applied every frame, so a name keeps its colour while the mouse is over it.
+The colours are yours to change: green, yellow and "not done" (the orange), in RuneLite's settings or the sidebar's menu. Green and yellow go on the names and on the box that shows your current choice; green also on the complete tiers. A changed "Not done colour" also recolours the unfinished names in the game's lists (the game's own orange is left to the game, so nothing changes until you pick another). Turn the plugin off and the game's own colours come back. Changes show at once, with no restart.
+
+The colour goes on the names in the open list and on the box that shows your current choice. A name keeps its colour while the mouse is over it.
+
+Tasks the game turns off for your Group Ironman size or on Deadman worlds are left out of every count.
 
 ## Your marks
 
@@ -55,19 +64,23 @@ The plugin reads the task lists the game's Combat Achievements menu uses, and yo
 
 - **Group Ironman:** tasks the game turns off for your group size are left out, as the game does.
 - **Deadman worlds:** tasks the game turns off on Deadman worlds are left out.
-- **The Fractured Archive** has no tasks yet, so it turns green only when you tick it.
+- **A name with no tasks yet**, such as the Fractured Archive, turns green only when you tick it.
 
 ## Settings
 
-Click the settings icon at the top of the sidebar, or find 2h CA Boss Checklist in RuneLite's settings. The sidebar's menu also has "Hide the sidebar button...": it asks first, then turns "Show the sidebar button" off. Turn it back on in RuneLite's settings.
+Click the settings icon at the top of the sidebar, or find 2h Combat Achievements in RuneLite's settings. The sidebar's menu has "Yellow when" as a choice, and a "Colours" group: Green..., Yellow..., Not done... and Frame... each open RuneLite's colour picker (a window of its own, so the sidebar stays in view and changes as you drag), and "Reset colours" puts all four back. The menu also has "Hide the sidebar button...": it asks first, then turns "Show the sidebar button" off. Turn it back on in RuneLite's settings.
 
 | Setting | What it does |
 |---|---|
 | Green when all tasks done | Shows a boss green once every task for it is done. On by default. Off: only the bosses you tick show green. |
-| Yellow when almost done | Shows a name yellow in the Tasks menu when one or two of its tasks are left. On by default. |
+| Yellow when | When a name turns yellow: 1 or 2 tasks left (the default), Started, Half done, Only Grandmaster left, or Off. If you had the old "Yellow when almost done" switched off, this starts as Off. |
 | Wiki pictures | Shows the wiki's picture of a boss on its card. On by default. |
 | Show the sidebar button | Shows the plugin's button in RuneLite's sidebar. On by default. Off: the button is hidden and names follow your account only; your marks are kept for when you turn it back on. |
 | Sidebar icon | The sidebar button's picture: 2h coin and book (the default), Book only, or 2h coin and CA letters. |
+| Green colour | The colour of finished names, in the sidebar and the Tasks menu. The game's green by default. |
+| Yellow colour | The colour of names that are almost done. Yellow by default. |
+| Not done colour | The colour of unfinished names. The game's orange by default; another colour is also set on the names in the Tasks menu. |
+| Frame colour | The colour of the frame round the boss you opened. A deep teal by default. |
 
 ## Privacy
 

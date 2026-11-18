@@ -104,7 +104,7 @@ public class WikiPicturesTest
 		assertEquals("nothing else is sent", 8, request.url().querySize());
 		assertEquals(WikiPictures.USER_AGENT, request.header("User-Agent"));
 		assertTrue("the User-Agent names the plugin: " + request.header("User-Agent"),
-			request.header("User-Agent").contains("2h CA Boss Checklist"));
+			request.header("User-Agent").contains("2h Combat Achievements"));
 
 		final HttpUrl address = HttpUrl.parse("https://oldschool.runescape.wiki/images/thumb/a.png/128px-a.png?1");
 		final Request picture = WikiPictures.requestForPicture(address);

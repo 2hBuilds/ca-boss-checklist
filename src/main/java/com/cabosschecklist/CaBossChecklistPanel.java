@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JLabel;
@@ -58,7 +59,13 @@ public class CaBossChecklistPanel extends PluginPanel
 	static final String LOGGED_OUT_HELPER = "Finished bosses show green";
 	/** The menu's switches. */
 	private static final String AUTO_DETECT_TEXT = "Green when all tasks done";
-	private static final String ALMOST_DONE_TEXT = "Yellow when almost done";
+	/** The yellow submenu's title; the current choice follows it. */
+	static final String YELLOW_TEXT = "Yellow when";
+	/** The colours submenu's title, and its reset row. */
+	static final String COLOURS_TEXT = "Colours";
+	static final String RESET_COLOURS_TEXT = "Reset colours";
+	/** A colour swatch's size, in px. */
+	private static final int SWATCH_SIZE = 12;
 	private static final String WIKI_PICTURES_TEXT = "Show wiki pictures";
 	/** The icon submenu's title; the current choice follows it. */
 	private static final String ICON_TEXT = "Sidebar icon";
@@ -74,7 +81,7 @@ public class CaBossChecklistPanel extends PluginPanel
 	static final String HIDE_ASK = "This hides the plugin's sidebar button in RuneLite.\n"
 		+ "Colours stay automatic, from your account only.\n"
 		+ "Your marks are kept, but not used while it is hidden.\n"
-		+ "To show it again: RuneLite's settings, 2h CA Boss Checklist.";
+		+ "To show it again: RuneLite's settings, 2h Combat Achievements.";
 
 	/** Puts the question before hiding the sidebar button to the player; true when they said yes. */
 	interface HidePrompt
@@ -96,13 +103,19 @@ public class CaBossChecklistPanel extends PluginPanel
 	private final JLabel headlineLabel = line(LOGGED_OUT_HEADLINE, FontManager.getDefaultBoldFont().deriveFont(14f), Color.WHITE);
 	private final JLabel helperLabel = line(LOGGED_OUT_HELPER, FontManager.getDefaultFont().deriveFont(12f), ColorScheme.LIGHT_GRAY_COLOR);
 	private JCheckBoxMenuItem autoDetectItem;
-	private JCheckBoxMenuItem almostDoneItem;
 	private JCheckBoxMenuItem wikiPicturesItem;
 	private JMenu iconMenu;
 	final List<IconChoice> iconItems = new ArrayList<>();
+	/** The "Yellow when" submenu and its choices, in the order of {@link CaBossChecklistConfig.YellowWhen}. */
+	final JMenu yellowMenu = group(YELLOW_TEXT);
+	final List<PlainChoice> yellowItems = new ArrayList<>();
+	/** The "Colours" submenu, its four rows in the order of {@link ColourSet.Slot} and the row that resets them. */
+	final JMenu coloursMenu = group(COLOURS_TEXT);
+	final List<JMenuItem> colourItems = new ArrayList<>();
 	private boolean syncing;
 	private final SupportLinks support;
-	private final JPopupMenu menu;
+	/** The settings menu. */
+	final JPopupMenu menu;
 	private long closedAtNanos = System.nanoTime() - 2 * REOPEN_GUARD_NANOS;
 	/** The view on show; null while logged out. */
 	private ChecklistView current;
@@ -123,7 +136,7 @@ public class CaBossChecklistPanel extends PluginPanel
 		this.settings = settings;
 		this.prompt = prompt;
 		this.actions = actions;
-		this.support = new SupportLinks("2h CA Boss Checklist", Version.CURRENT, GITHUB_URL, LinkBrowser::browse, this::closeMenu);
+		this.support = new SupportLinks("2h Combat Achievements", Version.CURRENT, GITHUB_URL, LinkBrowser::browse, this::closeMenu);
 		this.menu = buildMenu();
 
 		setLayout(new BorderLayout());
@@ -312,7 +325,8 @@ public class CaBossChecklistPanel extends PluginPanel
 		return item;
 	}
 
-	/** The settings menu: header, rule, three switches, rule, icon submenu, the hide row, rule, then the OK row. */
+	/** The settings menu: header, rule, the two switches, rule, the yellow, colours and icon submenus together, the hide
+	 * row, rule, then the OK row. */
 	private JPopupMenu buildMenu()
 	{
 		final JPopupMenu popup = new JPopupMenu();
@@ -321,11 +335,35 @@ public class CaBossChecklistPanel extends PluginPanel
 		popup.addSeparator();
 		autoDetectItem = check(AUTO_DETECT_TEXT, settings::setAutoDetect);
 		popup.add(autoDetectItem);
-		almostDoneItem = check(ALMOST_DONE_TEXT, settings::setAlmostDone);
-		popup.add(almostDoneItem);
 		wikiPicturesItem = check(WIKI_PICTURES_TEXT, settings::setWikiPictures);
 		popup.add(wikiPicturesItem);
 		popup.addSeparator();
+		for (PlainChoice item : yellowChoices())
+		{
+			yellowMenu.add(item);
+		}
+		popup.add(yellowMenu);
+		for (ColourSet.Slot slot : ColourSet.Slot.values())
+		{
+			final JMenuItem item = new JMenuItem(slot.menuText);
+			item.setFont(menuFont());
+			item.setForeground(Color.WHITE);
+			item.addActionListener(e -> settings.pickColour(slot, this));
+			colourItems.add(item);
+			coloursMenu.add(item);
+		}
+		coloursMenu.addSeparator();
+		final JMenuItem resetColours = new JMenuItem(RESET_COLOURS_TEXT);
+		resetColours.setFont(menuFont());
+		resetColours.setForeground(Color.WHITE);
+		resetColours.addActionListener(e ->
+		{
+			settings.resetColours();
+			syncControls();
+		});
+		colourItems.add(resetColours);
+		coloursMenu.add(resetColours);
+		popup.add(coloursMenu);
 		iconMenu = group(ICON_TEXT);
 		for (IconChoice item : radios(CaBossChecklistConfig.SidebarIcon.values(), settings::setSidebarIcon))
 		{
@@ -395,12 +433,87 @@ public class CaBossChecklistPanel extends PluginPanel
 	{
 		syncing = true;
 		autoDetectItem.setSelected(settings.autoDetect());
-		almostDoneItem.setSelected(settings.almostDone());
+		final CaBossChecklistConfig.YellowWhen when = settings.yellowWhen();
+		yellowMenu.setText(YELLOW_TEXT + ": " + when);
+		yellowItems.get(when.ordinal()).setSelected(true);
+		final ColourSet.Slot[] slots = ColourSet.Slot.values();
+		for (int i = 0; i < slots.length; i++)
+		{
+			colourItems.get(i).setIcon(swatch(settings.colours().get(slots[i])));
+		}
 		wikiPicturesItem.setSelected(settings.wikiPictures());
 		final CaBossChecklistConfig.SidebarIcon icon = settings.sidebarIcon();
 		iconMenu.setText(ICON_TEXT + ": " + icon);
 		iconItems.get(icon.ordinal()).setSelected(true);
 		syncing = false;
+	}
+
+	/** One choice of "Yellow when" per value, in one button group, in the menu's face. */
+	private List<PlainChoice> yellowChoices()
+	{
+		final ButtonGroup group = new ButtonGroup();
+		for (final CaBossChecklistConfig.YellowWhen value : CaBossChecklistConfig.YellowWhen.values())
+		{
+			final PlainChoice item = new PlainChoice(String.valueOf(value));
+			item.setFont(menuFont());
+			item.setForeground(Color.WHITE);
+			item.addActionListener(e ->
+			{
+				if (!syncing)
+				{
+					settings.setYellowWhen(value);
+				}
+			});
+			group.add(item);
+			yellowItems.add(item);
+		}
+		return yellowItems;
+	}
+
+	/** A small square of {@code colour} with a thin grey edge, for a menu row's left end. */
+	static Icon swatch(Color colour)
+	{
+		return new Icon()
+		{
+			@Override
+			public void paintIcon(Component c, Graphics g, int x, int y)
+			{
+				g.setColor(colour);
+				g.fillRect(x, y, SWATCH_SIZE, SWATCH_SIZE);
+				g.setColor(ColorScheme.LIGHT_GRAY_COLOR);
+				g.drawRect(x, y, SWATCH_SIZE - 1, SWATCH_SIZE - 1);
+			}
+
+			@Override
+			public int getIconWidth()
+			{
+				return SWATCH_SIZE;
+			}
+
+			@Override
+			public int getIconHeight()
+			{
+				return SWATCH_SIZE;
+			}
+		};
+	}
+
+	/** A radio item of a text-only submenu; it takes the left release over so a pick keeps the menu open. */
+	static final class PlainChoice extends JRadioButtonMenuItem
+	{
+		PlainChoice(String text)
+		{
+			super(text);
+		}
+
+		@Override
+		protected void processMouseEvent(MouseEvent e)
+		{
+			if (!takeRelease(this, e))
+			{
+				super.processMouseEvent(e);
+			}
+		}
 	}
 
 	private static Font menuFont()

@@ -25,13 +25,21 @@ final class CaCompletion
 		final int monsterId;
 		final int gimMaxGroupSize;
 		final int deadmanFlag;
+		/** The task's tier, 1 Easy to 6 Grandmaster; 0 when not known. */
+		final int tier;
 
 		Task(int taskId, int monsterId, int gimMaxGroupSize, int deadmanFlag)
+		{
+			this(taskId, monsterId, gimMaxGroupSize, deadmanFlag, 0);
+		}
+
+		Task(int taskId, int monsterId, int gimMaxGroupSize, int deadmanFlag, int tier)
 		{
 			this.taskId = taskId;
 			this.monsterId = monsterId;
 			this.gimMaxGroupSize = gimMaxGroupSize;
 			this.deadmanFlag = deadmanFlag;
+			this.tier = tier;
 		}
 	}
 
@@ -59,16 +67,30 @@ final class CaCompletion
 		return gimGroupSize <= task.gimMaxGroupSize;
 	}
 
-	/** One monster's counted tasks and how many of them are done. */
+	/** The tier number of Grandmaster tasks. */
+	static final int GRANDMASTER = 6;
+
+	/** One monster's counted tasks and how many of them are done, and how many of each are Grandmaster tasks. */
 	static final class Progress
 	{
 		final int total;
 		final int done;
+		/** How many of the counted tasks are Grandmaster tasks. */
+		final int grandmasterTotal;
+		/** How many of the Grandmaster tasks are done. */
+		final int grandmasterDone;
 
 		Progress(int total, int done)
 		{
+			this(total, done, 0, 0);
+		}
+
+		Progress(int total, int done, int grandmasterTotal, int grandmasterDone)
+		{
 			this.total = total;
 			this.done = done;
+			this.grandmasterTotal = grandmasterTotal;
+			this.grandmasterDone = grandmasterDone;
 		}
 
 		/** Whether the monster has counted tasks and all are done. */
@@ -87,21 +109,25 @@ final class CaCompletion
 		final Map<Integer, int[]> counts = new HashMap<>();
 		for (Task task : tasks)
 		{
-			final int[] count = counts.computeIfAbsent(task.monsterId, k -> new int[2]);
+			final int[] count = counts.computeIfAbsent(task.monsterId, k -> new int[4]);
 			if (isSkipped(task, deadmanWorld, gimGroupSize))
 			{
 				continue;
 			}
+			final boolean done = isTaskDone(task.taskId, completedVarps);
 			count[0]++;
-			if (isTaskDone(task.taskId, completedVarps))
+			count[1] += done ? 1 : 0;
+			if (task.tier == GRANDMASTER)
 			{
-				count[1]++;
+				count[2]++;
+				count[3] += done ? 1 : 0;
 			}
 		}
 		final Map<Integer, Progress> result = new HashMap<>();
 		for (Map.Entry<Integer, int[]> entry : counts.entrySet())
 		{
-			result.put(entry.getKey(), new Progress(entry.getValue()[0], entry.getValue()[1]));
+			final int[] count = entry.getValue();
+			result.put(entry.getKey(), new Progress(count[0], count[1], count[2], count[3]));
 		}
 		return result;
 	}
@@ -229,6 +255,40 @@ final class CaCompletion
 	}
 
 	/**
+	 * Whether {@code progress} makes a name yellow under {@code rule}. Marks are not looked at here, and a monster that is
+	 * complete (or has no counted task) is never yellow under any rule:
+	 * <ul>
+	 * <li>ONE_OR_TWO: at least one task done, one or two left;
+	 * <li>STARTED: at least one task done, not all;
+	 * <li>HALF: at least half the tasks done (done * 2 >= total), not all;
+	 * <li>ONLY_GRANDMASTER: at least one task done, every task below Grandmaster done, at least one Grandmaster task not;
+	 * <li>OFF: never.
+	 * </ul>
+	 */
+	static boolean isYellow(CaBossChecklistConfig.YellowWhen rule, Progress progress)
+	{
+		if (rule == null || rule == CaBossChecklistConfig.YellowWhen.OFF || progress == null || progress.total < 1
+			|| progress.done >= progress.total)
+		{
+			return false;
+		}
+		switch (rule)
+		{
+			case ONE_OR_TWO:
+				return isAlmostDone(progress);
+			case STARTED:
+				return progress.done >= 1;
+			case HALF:
+				return progress.done * 2 >= progress.total;
+			case ONLY_GRANDMASTER:
+				return progress.done >= 1 && progress.grandmasterDone < progress.grandmasterTotal
+					&& progress.done - progress.grandmasterDone == progress.total - progress.grandmasterTotal;
+			default:
+				return false;
+		}
+	}
+
+	/**
 	 * The monsters whose counted tasks are all done and number more than none (proc ca_bosses_draw_list, 4800, which
 	 * colours a Bosses-tab name green).
 	 */
@@ -252,11 +312,11 @@ final class CaCompletion
 	}
 
 	/**
-	 * The shade of a monster's name: green when {@link Marks#isGreen}; else yellow when {@code almostDone} is on and the
-	 * monster's progress is almost done; else plain. Id 0 ("All") and below are always plain; {@code progress} may be null.
+	 * The shade of a monster's name: green when {@link Marks#isGreen}; else yellow when {@link #isYellow} says so for
+	 * {@code rule}; else plain. Id 0 ("All") and below are always plain; {@code progress} may be null.
 	 */
-	static Shade shadeOf(int id, boolean autoDetect, boolean almostDone, Set<Integer> complete, Map<Integer, Mark> marks,
-		Map<Integer, Progress> progress)
+	static Shade shadeOf(int id, boolean autoDetect, CaBossChecklistConfig.YellowWhen rule, Set<Integer> complete,
+		Map<Integer, Mark> marks, Map<Integer, Progress> progress)
 	{
 		if (id < 1)
 		{
@@ -266,7 +326,7 @@ final class CaCompletion
 		{
 			return Shade.GREEN;
 		}
-		if (almostDone && progress != null && isAlmostDone(progress.get(id)))
+		if (progress != null && isYellow(rule, progress.get(id)))
 		{
 			return Shade.YELLOW;
 		}

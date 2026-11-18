@@ -16,7 +16,10 @@ import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.border.Border;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.MatteBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import net.runelite.client.ui.ColorScheme;
@@ -27,7 +30,7 @@ import net.runelite.client.ui.components.IconTextField;
  * its label and its status. The rows are built once per list of ids and then updated in place, so the scroll position and
  * the mouse state survive an update. Typing in the search box filters the list and chooses the first boss left; a press
  * on a row chooses that boss, and a press on the chosen row takes the choice off. The chosen boss's card and task list
- * form one panel that the list holds right after the boss's row, 2 px below it.
+ * form one panel that the list holds right after the boss's row, with no gap; the row and the panel share one frame.
  * Choice: the opened panel is in the list only while a boss is chosen, so a closed one holds no component, and it moves
  * to its place on each draw; a chosen row keeps its chosen ground under the mouse.
  */
@@ -39,6 +42,21 @@ final class BossesView extends JPanel
 	private static final int GAP = 6;
 	/** The search box's height, in px. */
 	private static final int SEARCH_HEIGHT = 30;
+	/** The space between the frame's sides and the tasks box, in px. */
+	private static final int TASKS_INSET = 4;
+	/** A row's padding, in px. */
+	private static final Border PLAIN_BORDER = new EmptyBorder(4, 4, 4, 6);
+
+	/**
+	 * The chosen row: the frame's top, left and right lines in the frame colour now, the padding cut by their width so the
+	 * content stays put.
+	 */
+	private static Border framedBorder()
+	{
+		return new CompoundBorder(
+			new MatteBorder(ViewParts.FRAME_WIDTH, ViewParts.FRAME_WIDTH, 0, ViewParts.FRAME_WIDTH, ViewParts.frame()),
+			new EmptyBorder(2, 2, 4, 4));
+	}
 
 	/** One boss's row: the box, the label and the status word. */
 	private static final class Row
@@ -53,7 +71,7 @@ final class BossesView extends JPanel
 		Row(int id, MarkActions actions, IntConsumer pressed)
 		{
 			panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			panel.setBorder(new EmptyBorder(4, 4, 4, 6));
+			panel.setBorder(PLAIN_BORDER);
 			box.setOpaque(false);
 			box.setFocusable(false);
 			box.addActionListener(e -> actions.flip(id));
@@ -94,6 +112,7 @@ final class BossesView extends JPanel
 			name.setForeground(ViewParts.colourOf(boss.shade));
 			status.setText(boss.status());
 			chosen = isChosen;
+			panel.setBorder(chosen ? framedBorder() : PLAIN_BORDER);
 			paintGround();
 		}
 
@@ -163,12 +182,16 @@ final class BossesView extends JPanel
 		taskList.setAlignmentX(Component.LEFT_ALIGNMENT);
 		final JPanel body = new JPanel();
 		body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-		body.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		body.setBackground(ViewParts.CARD_GROUND);
+		final JPanel tasks = ViewParts.capped(new BorderLayout());
+		tasks.setOpaque(false);
+		tasks.setBorder(new EmptyBorder(0, TASKS_INSET, TASKS_INSET, TASKS_INSET));
+		tasks.setAlignmentX(Component.LEFT_ALIGNMENT);
+		tasks.add(taskList, BorderLayout.CENTER);
 		body.add(card);
 		body.add(Box.createVerticalStrut(GAP));
-		body.add(taskList);
+		body.add(tasks);
 		opened.setOpaque(false);
-		opened.setBorder(new EmptyBorder(ROW_GAP, 0, 0, 0));
 		opened.add(body, BorderLayout.CENTER);
 
 		// The search box ends where the panel's header does, so every right edge lines up.
@@ -263,6 +286,8 @@ final class BossesView extends JPanel
 	/** Draws the rows, their grounds and the opened panel from the last view, the text and the choice. */
 	private void draw()
 	{
+		opened.setBorder(new MatteBorder(0, ViewParts.FRAME_WIDTH, ViewParts.FRAME_WIDTH, ViewParts.FRAME_WIDTH,
+			ViewParts.frame()));
 		final List<ChecklistView.Boss> left = filtered();
 		ChecklistView.Boss onCard = null;
 		int chosenAt = -1;

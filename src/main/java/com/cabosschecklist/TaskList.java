@@ -26,6 +26,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.util.LinkBrowser;
 
@@ -41,8 +42,6 @@ final class TaskList extends JPanel
 	/** The OSRS Wiki's search, to which the task's URL-encoded name is added. */
 	static final String SEARCH_URL = "https://oldschool.runescape.wiki/w/Special:Search?search=";
 
-	/** The space between rows, in px. */
-	private static final int ROW_GAP = 2;
 	/** The tick slot's width, in px. */
 	private static final int SLOT_WIDTH = 14;
 	/** The tick's side, in px. */
@@ -58,10 +57,13 @@ final class TaskList extends JPanel
 	private static final class Tick extends JComponent
 	{
 		private final boolean done;
+		/** The height of the name and detail lines, in px: the tick is centred on them, not on an open task's whole row. */
+		private final int head;
 
-		Tick(boolean done)
+		Tick(boolean done, int head)
 		{
 			this.done = done;
+			this.head = head;
 			final Dimension size = new Dimension(SLOT_WIDTH, TICK_SIZE);
 			setPreferredSize(size);
 			setMinimumSize(size);
@@ -82,7 +84,7 @@ final class TaskList extends JPanel
 				g.setColor(Color.WHITE);
 				g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 				final double x = (getWidth() - TICK_SIZE) / 2.0;
-				final double y = (getHeight() - TICK_SIZE) / 2.0;
+				final double y = (head - TICK_SIZE) / 2.0;
 				final Path2D.Double tick = new Path2D.Double();
 				tick.moveTo(x + 1, y + TICK_SIZE * 0.55);
 				tick.lineTo(x + TICK_SIZE * 0.4, y + TICK_SIZE - 1.5);
@@ -104,7 +106,8 @@ final class TaskList extends JPanel
 	TaskList()
 	{
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-		setOpaque(false);
+		setBackground(ViewParts.TASKS_GROUND);
+		setBorder(new LineBorder(ViewParts.TASKS_BORDER, 1));
 	}
 
 	/** As wide as the column it sits in, never taller than its content. */
@@ -138,7 +141,7 @@ final class TaskList extends JPanel
 		{
 			if (i > 0)
 			{
-				add(Box.createVerticalStrut(ROW_GAP));
+				add(divider());
 			}
 			add(row(lines.get(i)));
 		}
@@ -146,13 +149,31 @@ final class TaskList extends JPanel
 		repaint();
 	}
 
-	/** One task's row. */
+	/** The 1 px line between two tasks. */
+	private static JPanel divider()
+	{
+		final Dimension size = new Dimension(0, 1);
+		final JPanel line = new JPanel()
+		{
+			@Override
+			public Dimension getMaximumSize()
+			{
+				return new Dimension(Integer.MAX_VALUE, 1);
+			}
+		};
+		line.setBackground(ViewParts.TASK_LINE);
+		line.setPreferredSize(size);
+		line.setMinimumSize(size);
+		return line;
+	}
+
+	/** One task's row; an open one has the lighter band behind it. */
 	private JPanel row(CaCompletion.TaskLine line)
 	{
 		final JPanel panel = ViewParts.capped(new BorderLayout(4, 0));
-		panel.setOpaque(false);
+		panel.setOpaque(open.contains(line.taskId));
+		panel.setBackground(ViewParts.OPEN_BAND);
 		panel.setBorder(new EmptyBorder(4, 6, 4, 6));
-		final Tick tick = new Tick(line.done);
 		final JPanel text = new JPanel();
 		text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
 		text.setOpaque(false);
@@ -160,10 +181,11 @@ final class TaskList extends JPanel
 			line.done ? ColorScheme.LIGHT_GRAY_COLOR : Color.WHITE);
 		name.setToolTipText(line.name);
 		name.setAlignmentX(Component.LEFT_ALIGNMENT);
-		final JLabel detail = ViewParts.quiet(line.detail());
+		final JLabel detail = new TierLabel(line.tier, line.detail());
 		detail.setAlignmentX(Component.LEFT_ALIGNMENT);
 		text.add(name);
 		text.add(detail);
+		final Tick tick = new Tick(line.done, name.getPreferredSize().height + detail.getPreferredSize().height);
 		if (open.contains(line.taskId))
 		{
 			final JLabel description = ViewParts.label("", ViewParts.plain(11f), ColorScheme.LIGHT_GRAY_COLOR);

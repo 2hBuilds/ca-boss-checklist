@@ -1,5 +1,5 @@
 /*
- * 2h CA Boss Checklist - Plugin Hub build file. For humans and local builds only: the manifest says build=standard, so the
+ * 2h Combat Achievements - Plugin Hub build file. For humans and local builds only: the manifest says build=standard, so the
  * Hub deletes this file and builds the sources with its own.
  */
 plugins {
@@ -36,7 +36,7 @@ dependencies {
 
 group = 'com.cabosschecklist'
 // Equal to Version.CURRENT and to version= in runelite-plugin.properties (RELEASE-TEXT-template.md, checklist 2).
-version = '0.0.5'
+version = '0.0.6'
 
 // The Hub reads runelite-plugin.properties from the repository root; the frame test reads it back off the classpath.
 processResources {

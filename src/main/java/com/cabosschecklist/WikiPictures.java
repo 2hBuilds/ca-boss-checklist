@@ -52,7 +52,7 @@ final class WikiPictures
 	/** The wiki's host; the only one this class talks to and reads pictures from. */
 	static final String HOST = "oldschool.runescape.wiki";
 	/** The User-Agent every call carries, naming the plugin and where its source is. */
-	static final String USER_AGENT = "2h CA Boss Checklist (RuneLite plugin; github.com/2hBuilds/ca-boss-checklist)";
+	static final String USER_AGENT = "2h Combat Achievements (RuneLite plugin; github.com/2hBuilds/ca-boss-checklist)";
 	/** The width the wiki is asked to scale its picture to, in px. */
 	private static final int THUMB = 128;
 	/** The side of the square box a kept picture is fitted to, in px. */

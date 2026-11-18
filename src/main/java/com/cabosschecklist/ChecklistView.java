@@ -156,12 +156,12 @@ final class ChecklistView
 
 	/**
 	 * One boss per entry of {@code labels}; marks for ids not in {@code labels} are ignored everywhere. {@code names} are
-	 * the game's long names; a boss with none (or a blank one) takes its label for its name. {@code almostDone} lets a boss
-	 * with one or two tasks left take the yellow shade. {@code seen} are the overriding marks the player has looked at.
+	 * the game's long names; a boss with none (or a blank one) takes its label for its name. {@code yellowWhen} says when a
+	 * boss takes the yellow shade. {@code seen} are the overriding marks the player has looked at.
 	 */
 	static ChecklistView build(Map<Integer, String> labels, Map<Integer, String> names,
-		Map<Integer, CaCompletion.Progress> progress, Map<Integer, Mark> marks, boolean autoDetect, boolean almostDone,
-		Map<Integer, Mark> seen)
+		Map<Integer, CaCompletion.Progress> progress, Map<Integer, Mark> marks, boolean autoDetect,
+		CaBossChecklistConfig.YellowWhen yellowWhen, Map<Integer, Mark> seen)
 	{
 		final Set<Integer> complete = CaCompletion.completeIds(progress);
 		final List<Integer> ids = new ArrayList<>(labels.keySet());
@@ -183,8 +183,8 @@ final class ChecklistView
 			final boolean green = Marks.isGreen(id, autoDetect, complete, marks);
 			final String longName = names.get(id);
 			final String name = longName == null || longName.trim().isEmpty() ? labels.get(id) : longName;
-			final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, almostDone, complete, marks, progress);
-			final CaCompletion.Shade unmarkedShade = CaCompletion.shadeOf(id, autoDetect, almostDone, complete,
+			final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, yellowWhen, complete, marks, progress);
+			final CaCompletion.Shade unmarkedShade = CaCompletion.shadeOf(id, autoDetect, yellowWhen, complete,
 				Collections.emptyMap(), progress);
 			bosses.add(new Boss(id, labels.get(id), name, total, done, mark, green, shade, unmarkedShade, group));
 			greens += green ? 1 : 0;

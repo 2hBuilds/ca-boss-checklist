@@ -80,7 +80,7 @@ public class CaBossChecklistPanelTest
 		progress.put(5, new CaCompletion.Progress(6, 2));
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
-		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, true, false, Collections.emptyMap());
+		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 	}
 
 	/** The wiki's pictures over a factory that must never be called: for tests with the wiki switch off. */
@@ -117,13 +117,29 @@ public class CaBossChecklistPanelTest
 		}
 
 		@Override
-		public boolean almostDone()
+		public CaBossChecklistConfig.YellowWhen yellowWhen()
 		{
-			return true;
+			return CaBossChecklistConfig.YellowWhen.ONE_OR_TWO;
 		}
 
 		@Override
-		public void setAlmostDone(boolean on)
+		public void setYellowWhen(CaBossChecklistConfig.YellowWhen when)
+		{
+		}
+
+		@Override
+		public ColourSet colours()
+		{
+			return ColourSet.DEFAULTS;
+		}
+
+		@Override
+		public void pickColour(ColourSet.Slot slot, java.awt.Component owner)
+		{
+		}
+
+		@Override
+		public void resetColours()
 		{
 		}
 
@@ -365,7 +381,7 @@ public class CaBossChecklistPanelTest
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
 		final CaBossChecklistPanel panel = panel(new Recorder(),
-			ChecklistView.build(labels, Collections.emptyMap(), progress, threeMarks(), false, false, Collections.emptyMap()));
+			ChecklistView.build(labels, Collections.emptyMap(), progress, threeMarks(), false, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap()));
 		assertEquals(1, labelsWithText(panel, "Your marks (3)").size());
 		for (JLabel label : all(panel, JLabel.class))
 		{
@@ -392,7 +408,7 @@ public class CaBossChecklistPanelTest
 		progress.put(5, new CaCompletion.Progress(6, 2));
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
-		return ChecklistView.build(labels, names, progress, new HashMap<>(), true, false, Collections.emptyMap());
+		return ChecklistView.build(labels, names, progress, new HashMap<>(), true, CaBossChecklistConfig.YellowWhen.OFF, Collections.emptyMap());
 	}
 
 	private static <T> List<T> all(Component root, Class<T> type)
@@ -893,7 +909,7 @@ public class CaBossChecklistPanelTest
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 1));
 		final CaBossChecklistPanel panel = panel(new Recorder(),
-			ChecklistView.build(labels, Collections.emptyMap(), progress, Collections.emptyMap(), true, true, Collections.emptyMap()));
+			ChecklistView.build(labels, Collections.emptyMap(), progress, Collections.emptyMap(), true, CaBossChecklistConfig.YellowWhen.ONE_OR_TWO, Collections.emptyMap()));
 		final Color quiet = ViewParts.quiet("").getForeground();
 		assertEquals(new Color(0xFFFF00), oneLabel(panel, "Barrows").getForeground());
 		assertEquals(new Color(0x0DC10D), oneLabel(panel, "DK: Prime").getForeground());
@@ -914,7 +930,7 @@ public class CaBossChecklistPanelTest
 		progress.put(5, new CaCompletion.Progress(6, 2));
 		progress.put(19, new CaCompletion.Progress(4, 4));
 		progress.put(72, new CaCompletion.Progress(8, 8));
-		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, auto, false, seen);
+		return ChecklistView.build(labels, Collections.emptyMap(), progress, marks, auto, CaBossChecklistConfig.YellowWhen.OFF, seen);
 	}
 
 	private static Map<Integer, Mark> only(int id, Mark mark)

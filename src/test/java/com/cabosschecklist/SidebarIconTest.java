@@ -24,9 +24,9 @@ public class SidebarIconTest
 	@Test
 	public void almostDoneIsOnByDefault()
 	{
-		assertTrue(new CaBossChecklistConfig()
+		assertEquals(CaBossChecklistConfig.YellowWhen.ONE_OR_TWO, new CaBossChecklistConfig()
 		{
-		}.almostDone());
+		}.yellowWhen());
 	}
 
 	@Test

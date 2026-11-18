@@ -2,6 +2,13 @@ package com.cabosschecklist;
 
 import com.google.gson.Gson;
 import com.google.inject.Provides;
+import java.awt.Component;
+import java.awt.GraphicsConfiguration;
+import java.awt.Insets;
+import java.awt.MouseInfo;
+import java.awt.PointerInfo;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +37,7 @@ import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.RuneLiteProperties;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -39,20 +47,23 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
+import net.runelite.client.ui.components.colorpicker.RuneliteColorPicker;
 import net.runelite.client.util.AsyncBufferedImage;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 2h CA Boss Checklist: colours a Monster or Tier name green in the game's Tasks menu when the account has finished it
+ * 2h Combat Achievements: colours a Monster or Tier name green in the game's Tasks menu when the account has finished it
  * or the player marked it, and shows the bosses and the player's per-account marks in the sidebar.
  */
 @PluginDescriptor(
-	name = "2h CA Boss Checklist",
+	name = "2h Combat Achievements",
 	internalName = "ca-boss-checklist",
-	description = "A checklist of every Combat Achievements boss and its tasks. Finished bosses, and any you mark, show green in the game's Tasks menu. (v" + Version.CURRENT + ")",
-	tags = {"combat achievements", "ca", "boss", "checklist", "green", "tasks"}
+	description = "A checklist of every Combat Achievements boss and monster, with its tasks. Finished ones, and any you mark, show green in the game's Tasks menu. (v" + Version.CURRENT + ")",
+	tags = {"combat achievements", "ca", "checklist", "green", "tasks", "bosses", "monsters", "tiers", "guide", "progress",
+		"wiki", "highlight", "helper"}
 )
 public class CaBossChecklistPlugin extends Plugin
 {
@@ -87,10 +98,6 @@ public class CaBossChecklistPlugin extends Plugin
 	private static final int TIER_WORD_ENUM = 3967;
 	/** The type words, keys 1 to 6 (enum). */
 	private static final int TYPE_WORD_ENUM = 3969;
-	/** The game's own green. */
-	private static final int COMPLETE_COLOR = 0x0DC10D;
-	/** The yellow of a name with one or two tasks left. */
-	private static final int ALMOST_DONE_COLOR = 0xFFFF00;
 
 	/** The 21 varps holding the completed-task bits, in order. */
 	private static final int[] COMPLETED_VARPS = {
@@ -121,6 +128,12 @@ public class CaBossChecklistPlugin extends Plugin
 	private CaBossChecklistConfig config;
 
 	@Inject
+	private ClientThread clientThread;
+
+	@Inject
+	private ColorPickerManager colorPickerManager;
+
+	@Inject
 	private OkHttpClient okHttpClient;
 
 	@Inject
@@ -129,8 +142,26 @@ public class CaBossChecklistPlugin extends Plugin
 	@Inject
 	private ItemManager itemManager;
 
-	/** The text colour each chosen-name widget had before this plugin first coloured it, by widget id and index. */
-	private final Map<Long, Integer> originalColours = new ConcurrentHashMap<>();
+	/** A widget this plugin coloured: the colour it had before, and the colour set last. */
+	private static final class Painted
+	{
+		final Widget widget;
+		final int original;
+		volatile int applied;
+
+		Painted(Widget widget, int original)
+		{
+			this.widget = widget;
+			this.original = original;
+		}
+	}
+
+	/** The chosen-name widgets this plugin coloured, by widget id and index. */
+	private final Map<Long, Painted> originalColours = new ConcurrentHashMap<>();
+	/** The rows of the open Monster list this plugin coloured, by widget id and index. */
+	private final Map<Long, Painted> paintedRows = new ConcurrentHashMap<>();
+	/** The colours the player chose; read again on every change of this plugin's settings (any thread). */
+	private volatile ColourSet colours = ColourSet.DEFAULTS;
 	/** Whether the once-per-session log line about the chosen-name boxes has been written. */
 	private boolean boxLogged;
 
@@ -170,6 +201,9 @@ public class CaBossChecklistPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		carryOverYellow();
+		colours = readColours();
+		ViewParts.useColours(colours);
 		pictures = new WikiPictures(okHttpClient, gson, this::pictureArrived);
 		panel = new CaBossChecklistPanel(new Settings(), new Actions(), pictures,
 			(title, question, yes) -> ConfirmDialog.ask(SwingUtilities.getWindowAncestor(panel),
@@ -195,14 +229,35 @@ public class CaBossChecklistPlugin extends Plugin
 		reloadMarks();
 		recompute = true;
 		pushView();
-		log.info("2h CA Boss Checklist {} started on RuneLite {}", Version.CURRENT, RuneLiteProperties.getVersion());
+		log.info("2h Combat Achievements {} started on RuneLite {}", Version.CURRENT, RuneLiteProperties.getVersion());
+	}
+
+	/**
+	 * The old "Yellow when almost done" switch became the "Yellow when" choice: a player who had it off gets "Off", once.
+	 * Nothing is stored for anyone else (the default is today's rule), and a choice already stored is never touched.
+	 */
+	private void carryOverYellow()
+	{
+		final CaBossChecklistConfig.YellowWhen carried = YellowMigration.carryOver(
+			configManager.getConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.ALMOST_DONE_KEY),
+			configManager.getConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.YELLOW_WHEN_KEY));
+		if (carried != null)
+		{
+			configManager.setConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.YELLOW_WHEN_KEY, carried);
+		}
+	}
+
+	/** The four colours as the config holds them now. */
+	private ColourSet readColours()
+	{
+		return new ColourSet(config.greenColour(), config.yellowColour(), config.notDoneColour(), config.frameColour());
 	}
 
 	/** The sidebar button, with {@code icon}. */
 	private NavigationButton navigationButton(BufferedImage icon)
 	{
 		return NavigationButton.builder()
-			.tooltip("2h CA Boss Checklist")
+			.tooltip("2h Combat Achievements")
 			.icon(icon)
 			.priority(NAV_PRIORITY)
 			.panel(panel)
@@ -282,15 +337,62 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 
 		@Override
-		public boolean almostDone()
+		public CaBossChecklistConfig.YellowWhen yellowWhen()
 		{
-			return config.almostDone();
+			return config.yellowWhen();
 		}
 
 		@Override
-		public void setAlmostDone(boolean on)
+		public void setYellowWhen(CaBossChecklistConfig.YellowWhen when)
 		{
-			configManager.setConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.ALMOST_DONE_KEY, on);
+			configManager.setConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.YELLOW_WHEN_KEY, when);
+		}
+
+		@Override
+		public ColourSet colours()
+		{
+			return readColours();
+		}
+
+		/**
+		 * Opens RuneLite's own picker, a window of its own, so the sidebar stays in view. Every change in it is stored at
+		 * once; the ConfigChanged that follows redraws the sidebar and the game's lists.
+		 */
+		@Override
+		public void pickColour(ColourSet.Slot slot, Component owner)
+		{
+			final RuneliteColorPicker picker = colorPickerManager.create(SwingUtilities.getWindowAncestor(owner),
+				colours().get(slot), slot.title, true);
+			picker.setOnColorChange(chosen ->
+				configManager.setConfiguration(CaBossChecklistConfig.GROUP, slot.key, chosen));
+			placeBeside(picker, owner);
+			picker.setVisible(true);
+		}
+
+		/** Puts the picker beside the sidebar, level with the mouse (see {@link PickerPlace}); left alone if not shown. */
+		private void placeBeside(RuneliteColorPicker picker, Component owner)
+		{
+			if (owner == null || !owner.isShowing() || owner.getGraphicsConfiguration() == null)
+			{
+				return;
+			}
+			final GraphicsConfiguration screenOf = owner.getGraphicsConfiguration();
+			final Insets bars = Toolkit.getDefaultToolkit().getScreenInsets(screenOf);
+			final Rectangle bounds = screenOf.getBounds();
+			final Rectangle screen = new Rectangle(bounds.x + bars.left, bounds.y + bars.top,
+				bounds.width - bars.left - bars.right, bounds.height - bars.top - bars.bottom);
+			final PointerInfo pointer = MouseInfo.getPointerInfo();
+			picker.setLocation(PickerPlace.place(screen, new Rectangle(owner.getLocationOnScreen(), owner.getSize()),
+				pointer == null ? null : pointer.getLocation(), picker.getSize()));
+		}
+
+		@Override
+		public void resetColours()
+		{
+			for (ColourSet.Slot slot : ColourSet.Slot.values())
+			{
+				configManager.unsetConfiguration(CaBossChecklistConfig.GROUP, slot.key);
+			}
 		}
 
 		@Override
@@ -328,6 +430,8 @@ public class CaBossChecklistPlugin extends Plugin
 		{
 			configManager.unsetConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.AUTO_DETECT_KEY);
 			configManager.unsetConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.ALMOST_DONE_KEY);
+			configManager.unsetConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.YELLOW_WHEN_KEY);
+			resetColours();
 			configManager.unsetConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.WIKI_PICTURES_KEY);
 			configManager.unsetConfiguration(CaBossChecklistConfig.GROUP, CaBossChecklistConfig.SIDEBAR_ICON_KEY);
 		}
@@ -342,7 +446,8 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 		navButton = null;
 		buttonAdded = false;
-		originalColours.clear();
+		clientThread.invoke(this::restoreGameColours);
+		ViewParts.useColours(null);
 		boxLogged = false;
 		panel = null;
 		pictures = null;
@@ -391,6 +496,7 @@ public class CaBossChecklistPlugin extends Plugin
 		{
 			return;
 		}
+		ViewParts.useColours(colours);
 		final Map<Integer, CaCompletion.Progress> current = progress;
 		if (current == null || configManager.getRSProfileKey() == null)
 		{
@@ -398,7 +504,7 @@ public class CaBossChecklistPlugin extends Plugin
 		}
 		else
 		{
-			target.show(ChecklistView.build(labels, names, current, marks, config.autoDetect(), config.almostDone(),
+			target.show(ChecklistView.build(labels, names, current, marks, config.autoDetect(), config.yellowWhen(),
 				seen).withTasks(taskLines));
 		}
 	}
@@ -487,6 +593,7 @@ public class CaBossChecklistPlugin extends Plugin
 			if (state == GameState.LOGIN_SCREEN)
 			{
 				originalColours.clear();
+				paintedRows.clear();
 				progress = null;
 				taskLines = Collections.emptyMap();
 				pushView();
@@ -521,6 +628,7 @@ public class CaBossChecklistPlugin extends Plugin
 	{
 		if (CaBossChecklistConfig.GROUP.equals(event.getGroup()))
 		{
+			colours = readColours();
 			reloadMarks();
 			recompute = true;
 			pushView();
@@ -586,6 +694,7 @@ public class CaBossChecklistPlugin extends Plugin
 		final Map<Integer, CaCompletion.TaskText> loadedTexts = new HashMap<>();
 		for (int enumId : TASK_ENUMS)
 		{
+			final int tier = tierOfEnum(enumId);
 			for (int structId : client.getEnum(enumId).getIntVals())
 			{
 				final StructComposition struct = client.getStructComposition(structId);
@@ -594,7 +703,8 @@ public class CaBossChecklistPlugin extends Plugin
 					taskId,
 					struct.getIntValue(PARAM_MONSTER_ID),
 					struct.getIntValue(PARAM_GIM_MAX_GROUP_SIZE),
-					struct.getIntValue(PARAM_DEADMAN_SKIPPED)));
+					struct.getIntValue(PARAM_DEADMAN_SKIPPED),
+					tier));
 				loadedTexts.put(taskId, new CaCompletion.TaskText(
 					struct.getStringValue(PARAM_TASK_NAME),
 					struct.getStringValue(PARAM_TASK_DESCRIPTION),
@@ -628,6 +738,19 @@ public class CaBossChecklistPlugin extends Plugin
 		labels = Collections.unmodifiableMap(loadedLabels);
 	}
 
+	/** The tier a task enum lists: 1 for Easy to 6 for Grandmaster, in the order of {@link #TASK_ENUMS}. */
+	private static int tierOfEnum(int enumId)
+	{
+		for (int i = 0; i < TASK_ENUMS.length; i++)
+		{
+			if (TASK_ENUMS[i] == enumId)
+			{
+				return i + 1;
+			}
+		}
+		return 0;
+	}
+
 	/** The words of an enum's keys 1 to 6. */
 	private Map<Integer, String> words(int enumId)
 	{
@@ -658,7 +781,8 @@ public class CaBossChecklistPlugin extends Plugin
 	private void colourMenus()
 	{
 		final boolean autoDetect = config.autoDetect();
-		final boolean almostDone = config.almostDone();
+		final CaBossChecklistConfig.YellowWhen yellowWhen = config.yellowWhen();
+		final ColourSet now = colours;
 		final Map<Integer, Mark> markNow = Marks.inUse(marks, config.showSidebar());
 		final Map<Integer, CaCompletion.Progress> progressNow = progress;
 		final Widget monsters = client.getWidget(InterfaceID.CaTasks.DROPDOWN_MONSTER);
@@ -670,16 +794,13 @@ public class CaBossChecklistPlugin extends Plugin
 				for (Widget row : rows)
 				{
 					final int id = CaCompletion.idForRow(row.getIndex());
-					final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, almostDone, completeMonsters, markNow,
+					final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, yellowWhen, completeMonsters, markNow,
 						progressNow);
-					if (shade != CaCompletion.Shade.PLAIN)
-					{
-						row.setTextColor(colourOf(shade));
-					}
+					paintRow(row, now.inGame(shade, id));
 				}
 			}
 		}
-		colourChosenBoxes(autoDetect, almostDone, markNow, progressNow);
+		colourChosenBoxes(autoDetect, yellowWhen, markNow, progressNow, now);
 		final Widget tiers = client.getWidget(InterfaceID.CaTasks.DROPDOWN_TIER);
 		if (tiers != null && !tiers.isHidden())
 		{
@@ -691,16 +812,63 @@ public class CaBossChecklistPlugin extends Plugin
 					final int id = CaCompletion.idForRow(row.getIndex());
 					if (id >= 1 && id <= 6 && completeTiers.contains(id))
 					{
-						row.setTextColor(COMPLETE_COLOR);
+						row.setTextColor(now.completeTier());
 					}
 				}
 			}
 		}
 	}
 
-	private static int colourOf(CaCompletion.Shade shade)
+	private static long keyOf(Widget widget)
 	{
-		return shade == CaCompletion.Shade.GREEN ? COMPLETE_COLOR : ALMOST_DONE_COLOR;
+		return ((long) widget.getId() << 16) | (widget.getIndex() & 0xFFFF);
+	}
+
+	/**
+	 * Sets a Monster list row to {@code colour}, or, when it is null, leaves the game's own colour alone; a row this plugin
+	 * coloured before (a colour since changed back to the default, a name no longer green) gets the game's orange again,
+	 * unless the game has already drawn it in another colour (a hover).
+	 */
+	private void paintRow(Widget row, Integer colour)
+	{
+		final long key = keyOf(row);
+		if (colour != null)
+		{
+			final Painted painted = paintedRows.computeIfAbsent(key,
+				k -> new Painted(row, ViewParts.PLAIN.getRGB() & 0xFFFFFF));
+			painted.applied = colour;
+			row.setTextColor(colour);
+			return;
+		}
+		final Painted painted = paintedRows.remove(key);
+		if (painted != null && row.getTextColor() == painted.applied)
+		{
+			row.setTextColor(painted.original);
+		}
+	}
+
+	/**
+	 * Puts the game's colours back on everything this plugin coloured, for the plugin's shut-down (client thread): a widget
+	 * the game has since drawn in another colour is left alone.
+	 */
+	private void restoreGameColours()
+	{
+		for (Painted painted : paintedRows.values())
+		{
+			if (painted.widget.getTextColor() == painted.applied)
+			{
+				painted.widget.setTextColor(painted.original);
+			}
+		}
+		for (Painted painted : originalColours.values())
+		{
+			if (painted.widget.getTextColor() == painted.applied)
+			{
+				painted.widget.setTextColor(painted.original);
+			}
+		}
+		paintedRows.clear();
+		originalColours.clear();
 	}
 
 	/**
@@ -709,8 +877,8 @@ public class CaBossChecklistPlugin extends Plugin
 	 * varbit (scripts ca_task_updatetext 4833 and ca_task_filter_updatetext 4823 write the box from it, in full or cut
 	 * with "..."); only a widget showing that monster's label is touched.
 	 */
-	private void colourChosenBoxes(boolean autoDetect, boolean almostDone, Map<Integer, Mark> markNow,
-		Map<Integer, CaCompletion.Progress> progressNow)
+	private void colourChosenBoxes(boolean autoDetect, CaBossChecklistConfig.YellowWhen yellowWhen,
+		Map<Integer, Mark> markNow, Map<Integer, CaCompletion.Progress> progressNow, ColourSet now)
 	{
 		final int id = client.getVarbitValue(VarbitID.CA_TASK_FILTER_MONSTER);
 		final String label = labels.get(id);
@@ -718,10 +886,11 @@ public class CaBossChecklistPlugin extends Plugin
 		{
 			return;
 		}
-		final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, almostDone, completeMonsters, markNow,
+		final CaCompletion.Shade shade = CaCompletion.shadeOf(id, autoDetect, yellowWhen, completeMonsters, markNow,
 			progressNow);
-		int matched = colourChosenTree(client.getWidget(InterfaceID.CaTasks.MONSTER_FILTER), 0, label, shade);
-		matched += colourChosenTree(client.getWidget(InterfaceID.CaTasks.DROPDOWN_BOX), 0, label, shade);
+		final Integer colour = now.inGame(shade, id);
+		int matched = colourChosenTree(client.getWidget(InterfaceID.CaTasks.MONSTER_FILTER), 0, label, colour);
+		matched += colourChosenTree(client.getWidget(InterfaceID.CaTasks.DROPDOWN_BOX), 0, label, colour);
 		if (!boxLogged && matched > 0)
 		{
 			boxLogged = true;
@@ -730,7 +899,7 @@ public class CaBossChecklistPlugin extends Plugin
 	}
 
 	/** Colours the widget and its children down to depth 3 that show {@code label}; returns how many matched. */
-	private int colourChosenTree(Widget widget, int depth, String label, CaCompletion.Shade shade)
+	private int colourChosenTree(Widget widget, int depth, String label, Integer colour)
 	{
 		if (widget == null || widget.isHidden())
 		{
@@ -740,38 +909,40 @@ public class CaBossChecklistPlugin extends Plugin
 		if (CaCompletion.showsLabel(widget.getText(), label))
 		{
 			matched++;
-			final long key = ((long) widget.getId() << 16) | (widget.getIndex() & 0xFFFF);
-			if (shade == CaCompletion.Shade.PLAIN)
+			final long key = keyOf(widget);
+			if (colour == null)
 			{
-				final Integer original = originalColours.get(key);
-				if (original != null && widget.getTextColor() != original)
+				final Painted painted = originalColours.get(key);
+				if (painted != null && widget.getTextColor() != painted.original)
 				{
-					widget.setTextColor(original);
+					widget.setTextColor(painted.original);
 				}
 			}
 			else
 			{
-				originalColours.putIfAbsent(key, widget.getTextColor());
-				widget.setTextColor(colourOf(shade));
+				final Painted painted = originalColours.computeIfAbsent(key,
+					k -> new Painted(widget, widget.getTextColor()));
+				painted.applied = colour;
+				widget.setTextColor(colour);
 			}
 		}
 		if (depth < 3)
 		{
-			matched += colourAll(widget.getStaticChildren(), depth + 1, label, shade);
-			matched += colourAll(widget.getDynamicChildren(), depth + 1, label, shade);
-			matched += colourAll(widget.getNestedChildren(), depth + 1, label, shade);
+			matched += colourAll(widget.getStaticChildren(), depth + 1, label, colour);
+			matched += colourAll(widget.getDynamicChildren(), depth + 1, label, colour);
+			matched += colourAll(widget.getNestedChildren(), depth + 1, label, colour);
 		}
 		return matched;
 	}
 
-	private int colourAll(Widget[] children, int depth, String label, CaCompletion.Shade shade)
+	private int colourAll(Widget[] children, int depth, String label, Integer colour)
 	{
 		int matched = 0;
 		if (children != null)
 		{
 			for (Widget child : children)
 			{
-				matched += colourChosenTree(child, depth, label, shade);
+				matched += colourChosenTree(child, depth, label, colour);
 			}
 		}
 		return matched;
